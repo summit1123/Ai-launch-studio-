@@ -3,9 +3,15 @@ import { useEffect, useMemo, useState, type FormEvent } from "react";
 import {
   createChatSession,
   generateRun,
+  getChatSession,
   getRun,
   postChatMessage,
+  streamChatMessage,
 } from "../api/client";
+import {
+  MessageStream,
+  type MessageStreamItem,
+} from "../components/MessageStream";
 import { LaunchResult } from "./LaunchResult";
 import type {
   BriefSlots,
@@ -13,13 +19,8 @@ import type {
   ChatState,
   GateStatus,
   LaunchPackage,
+  StreamEvent,
 } from "../types";
-
-type ChatLine = {
-  id: string;
-  role: "assistant" | "user" | "system";
-  text: string;
-};
 
 function lineId(prefix: string): string {
   return `${prefix}_${Date.now()}_${Math.random().toString(16).slice(2)}`;
@@ -46,6 +47,52 @@ function stageLabel(state: ChatState): string {
   }
 }
 
+const CHAT_STATES: ChatState[] = [
+  "CHAT_COLLECTING",
+  "BRIEF_READY",
+  "RUN_RESEARCH",
+  "GEN_STRATEGY",
+  "GEN_CREATIVES",
+  "DONE",
+  "FAILED",
+];
+
+function asChatState(value: unknown): ChatState | null {
+  if (typeof value !== "string") {
+    return null;
+  }
+  return CHAT_STATES.includes(value as ChatState) ? (value as ChatState) : null;
+}
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return null;
+  }
+  return value as Record<string, unknown>;
+}
+
+function parseGateStatus(value: unknown): GateStatus | null {
+  const record = asRecord(value);
+  if (!record) {
+    return null;
+  }
+  if (
+    typeof record.ready !== "boolean" ||
+    typeof record.completeness !== "number" ||
+    !Array.isArray(record.missing_required)
+  ) {
+    return null;
+  }
+  if (!record.missing_required.every((item) => typeof item === "string")) {
+    return null;
+  }
+  return {
+    ready: record.ready,
+    completeness: record.completeness,
+    missing_required: record.missing_required as string[],
+  };
+}
+
 function summarizeSlots(slots: BriefSlots | null): string {
   if (!slots) {
     return "세션을 생성하는 중입니다.";
@@ -68,12 +115,16 @@ function summarizeSlots(slots: BriefSlots | null): string {
   ].join("\n");
 }
 
+async function getRunSessionSnapshot(sessionId: string) {
+  return getChatSession(sessionId);
+}
+
 export function ChatWorkspace() {
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [state, setState] = useState<ChatState>("CHAT_COLLECTING");
   const [briefSlots, setBriefSlots] = useState<BriefSlots | null>(null);
   const [gate, setGate] = useState<GateStatus | null>(null);
-  const [messages, setMessages] = useState<ChatLine[]>([]);
+  const [messages, setMessages] = useState<MessageStreamItem[]>([]);
   const [draft, setDraft] = useState("");
   const [loadingSession, setLoadingSession] = useState(false);
   const [sending, setSending] = useState(false);
@@ -131,18 +182,25 @@ export function ChatWorkspace() {
     };
   }, []);
 
+  const appendMessage = (line: MessageStreamItem) => {
+    setMessages((previous) => [...previous, line]);
+  };
+
+  const updateMessageText = (id: string, text: string) => {
+    setMessages((previous) =>
+      previous.map((line) => (line.id === id ? { ...line, text } : line))
+    );
+  };
+
   const applyTurnResponse = (response: ChatMessageResponse) => {
     setState(response.state);
     setBriefSlots(response.brief_slots);
     setGate(response.gate);
-    setMessages((previous) => [
-      ...previous,
-      {
-        id: lineId("assistant"),
-        role: "assistant",
-        text: response.assistant_message,
-      },
-    ]);
+    appendMessage({
+      id: lineId("assistant"),
+      role: "assistant",
+      text: response.assistant_message,
+    });
   };
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
@@ -159,22 +217,88 @@ export function ChatWorkspace() {
     setDraft("");
     setError(null);
     setSending(true);
-    setMessages((previous) => [
-      ...previous,
-      { id: lineId("user"), role: "user", text: message },
-    ]);
+    appendMessage({ id: lineId("user"), role: "user", text: message });
+
+    const assistantLineId = lineId("assistant");
+    appendMessage({ id: assistantLineId, role: "assistant", text: "" });
+    let assistantBuffer = "";
 
     try {
-      const response = await postChatMessage(sessionId, { message });
-      applyTurnResponse(response);
+      await streamChatMessage(sessionId, { message }, (event: StreamEvent) => {
+        const payload = asRecord(event.data);
+
+        if (event.type === "planner.delta") {
+          const text = payload?.text;
+          if (typeof text === "string") {
+            assistantBuffer += text;
+            updateMessageText(assistantLineId, assistantBuffer);
+          }
+          return;
+        }
+
+        if (event.type === "stage.changed") {
+          const nextState = asChatState(payload?.to ?? payload?.state);
+          if (nextState) {
+            setState(nextState);
+          }
+          return;
+        }
+
+        if (event.type === "gate.ready") {
+          const parsedGate = parseGateStatus(event.data);
+          if (parsedGate) {
+            setGate(parsedGate);
+          }
+          return;
+        }
+
+        if (event.type === "run.completed") {
+          const nextState = asChatState(payload?.state);
+          if (nextState) {
+            setState(nextState);
+          }
+          const parsedGate = parseGateStatus(payload?.gate);
+          if (parsedGate) {
+            setGate(parsedGate);
+          }
+          return;
+        }
+
+        if (event.type === "error") {
+          const message =
+            typeof payload?.message === "string"
+              ? payload.message
+              : "스트림 처리 중 오류가 발생했습니다.";
+          setError(message);
+        }
+      });
+
+      const latestSession = await getRunSessionSnapshot(sessionId);
+      setState(latestSession.state);
+      setBriefSlots(latestSession.brief_slots);
+      setGate(latestSession.gate);
+
+      if (!assistantBuffer.trim()) {
+        updateMessageText(
+          assistantLineId,
+          "응답이 비어 있습니다. 다시 시도하거나 음성 입력을 사용해 주세요."
+        );
+      }
     } catch (err) {
-      const messageText =
-        err instanceof Error ? err.message : "메시지 전송에 실패했습니다.";
-      setError(messageText);
-      setMessages((previous) => [
-        ...previous,
-        { id: lineId("system"), role: "system", text: messageText },
-      ]);
+      try {
+        const response: ChatMessageResponse = await postChatMessage(sessionId, {
+          message,
+        });
+        setMessages((previous) =>
+          previous.filter((line) => line.id !== assistantLineId)
+        );
+        applyTurnResponse(response);
+      } catch {
+        const messageText =
+          err instanceof Error ? err.message : "메시지 전송에 실패했습니다.";
+        setError(messageText);
+        appendMessage({ id: lineId("system"), role: "system", text: messageText });
+      }
     } finally {
       setSending(false);
     }
@@ -226,39 +350,7 @@ export function ChatWorkspace() {
 
       <section className="glass-panel">
         <h2 className="section-title">대화</h2>
-        <div
-          style={{
-            display: "grid",
-            gap: "10px",
-            maxHeight: "380px",
-            overflowY: "auto",
-            padding: "6px",
-          }}
-        >
-          {messages.map((line) => (
-            <div
-              key={line.id}
-              style={{
-                justifySelf: line.role === "user" ? "end" : "start",
-                maxWidth: "88%",
-                padding: "10px 14px",
-                borderRadius: "12px",
-                border:
-                  line.role === "system"
-                    ? "1px solid rgba(239, 68, 68, 0.35)"
-                    : "1px solid rgba(255, 255, 255, 0.12)",
-                background:
-                  line.role === "user"
-                    ? "rgba(56, 189, 248, 0.18)"
-                    : line.role === "system"
-                      ? "rgba(239, 68, 68, 0.12)"
-                      : "rgba(15, 23, 42, 0.7)",
-              }}
-            >
-              {line.text}
-            </div>
-          ))}
-        </div>
+        <MessageStream items={messages} />
 
         <form
           onSubmit={handleSubmit}
