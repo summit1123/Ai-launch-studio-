@@ -44,6 +44,7 @@ export VITE_API_BASE_URL=http://localhost:8000/api
 ```bash
 OPENAI_API_KEY=your_key
 OPENAI_MODEL=gpt-5.2
+OPENAI_IMAGE_MODEL=gpt-image-1.5
 USE_AGENT_SDK=true
 DB_PATH=launch_studio.db
 ```

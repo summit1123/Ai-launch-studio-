@@ -42,6 +42,7 @@ uv sync --frozen
 
 ## 참고
 - 미디어 생성은 `OPENAI_API_KEY`가 필요합니다.
+- 포스터 생성 모델은 `OPENAI_IMAGE_MODEL`로 제어하며 기본값은 `gpt-image-1.5`입니다.
 - 생성 파일은 `/static/assets`로 서빙됩니다.
 - SQLite 경로는 `DB_PATH`로 설정합니다.
 

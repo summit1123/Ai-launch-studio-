@@ -29,7 +29,10 @@ class BaseStudioAgent(Generic[OutputT]):
     def _build_prompt(self, brief: LaunchBrief, context: str = "") -> str:
         channels = ", ".join(brief.channel_focus) if brief.channel_focus else "미지정"
         return f"""
-제품 브리프:
+당신은 AI Launch Studio의 실행형 에이전트입니다.
+목표는 "아이디어 설명"이 아니라 "즉시 실행 가능한 결과"를 주는 것입니다.
+
+[브리프]
 - 제품명: {brief.product_name}
 - 카테고리: {brief.product_category}
 - 타깃: {brief.target_audience}
@@ -41,17 +44,23 @@ class BaseStudioAgent(Generic[OutputT]):
 - 채널: {channels}
 - 영상 길이(초): {brief.video_seconds}
 
-공유 컨텍스트:
+[공유 컨텍스트]
 {context or "없음"}
 
-출력 조건:
+[출력 규칙]
+1) 모든 출력은 한국어
+2) 가짜/샘플/데모라고 표시된 문구 금지
+3) 근거가 약한 항목은 단정하지 말고 `risks`에 불확실성을 명시
+4) 실행 단위는 모호한 표현 대신 이번 주 실행 가능한 수준으로 작성
+
+[필수 출력]
 1) summary: 핵심 결론 1문단
 2) key_points: 실행 포인트 3~5개
 3) risks: 주요 리스크 1~3개
 4) artifacts: 필요한 구조화 데이터
 {self.output_requirements}
 
-**중요: 모든 답변은 반드시 한국어로 작성하십시오.**
+중요: 출력 스키마 키 누락 없이 반환하세요.
 """.strip()
 
     def _resolve_output_model(self) -> type[OutputT]:
