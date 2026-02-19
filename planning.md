@@ -1,12 +1,20 @@
-# AI Launch Studio 상세 실행 계획 (커밋 단위)
+# AI Launch Studio 챗+음성 MVP 상세 실행 계획 (커밋 단위)
 
 ## 0. 목적
-- 음성 대화형(스무고개) MVP를 안정적으로 구현한다.
-- 한 커밋이 한 책임만 가지도록 세분화한다.
-- 문서 -> 데이터/계약 -> 백엔드 -> 프론트 -> 품질 순서로 진행한다.
+- 채팅 입력과 음성 입력을 모두 지원하는 단일 세션 기반 MVP를 구현한다.
+- 입력 방식(텍스트/음성)이 달라도 동일한 브리프 게이트, 오케스트레이션 상태 전이, 출력 계약을 보장한다.
+- 오케스트레이터 중심 분업 개발(팀 병렬 작업)이 가능하도록 API/스키마/문서/테스트 기준을 먼저 고정한다.
+- 커밋 단위를 작게 유지해 통합 리스크를 줄이고, 각 단계마다 재현 가능한 검증 명령으로 완료를 판정한다.
+- 구현 순서는 문서 -> 데이터 계약 -> 백엔드 -> 프론트 -> 품질 안정화로 고정한다.
+
+## 0-1. MVP 완료 정의 (필수)
+- 텍스트만 사용한 대화로 `CHAT_COLLECTING -> DONE` 완주 가능
+- 음성만 사용한 대화로 `CHAT_COLLECTING -> DONE` 완주 가능
+- 텍스트+음성 혼합 대화로 `CHAT_COLLECTING -> DONE` 완주 가능
+- 위 3가지 모두에서 동일한 전략/크리에이티브/보이스 결과 계약을 만족
 
 ## 1. 작업 규칙
-- 브랜치: `codex/voice-chat-mvp`
+- 브랜치: `chat-voice-mvp`
 - 커밋 컨벤션: `type(scope): 내용`
 - 한 커밋 권장 범위: 파일 3~8개, 변경 300줄 내외
 - 각 단계 종료 시 동작 확인 후 다음 단계로 이동
@@ -23,9 +31,38 @@
 - 프론트 테스트(도입 후):
   - `cd frontend && npm run test -- --run`
 
+## 1-2. 문서/스킬 참조 맵
+- 제품 범위/성공 기준
+  - `PRD.md`
+  - `docs/mvp.md`
+  - `docs/voice_chat_mvp_spec.md`
+- 팀 협업 규칙
+  - `team.md`
+  - `docs/codex_workflow.md`
+- API/데이터 계약
+  - `docs/api.md`
+  - `docs/db_schema.md`
+  - `docs/orchestrator_design.md`
+  - `docs/voice_agent.md`
+- OpenAI 기능/미디어
+  - `docs/openai_stack.md`
+  - `docs/sora_video_optimization.md`
+- 환경/운영
+  - `docs/uv_setup.md`
+  - `backend/README.md`
+  - `frontend/README.md`
+- 스킬 참조
+  - `skills/launch-studio-mvp/SKILL.md`
+  - `docs/skills_guide.md`
+- 단계 중 생성 예정 문서
+  - `docs/prompt_contracts.md` (A-04에서 생성)
+  - `docs/test_runbook.md` (A-04에서 생성)
+  - `docs/release_notes_mvp.md` (R-02에서 생성)
+
 ## 2. 단계별 커밋 플랜
 
 ## Phase A. 준비/환경 고정 (문서 + uv)
+- 필수 참조: `docs/uv_setup.md`, `backend/README.md`, `docs/README.md`, `team.md`, `skills/launch-studio-mvp/SKILL.md`
 
 ### A-01
 - 커밋: `chore(backend): uv 프로젝트 설정 파일 추가`
@@ -67,6 +104,7 @@
   - 기대 결과: 4개 에이전트 키워드 모두 검색됨
 
 ## Phase B. DB와 저장소 계층
+- 필수 참조: `docs/db_schema.md`, `docs/api.md`, `docs/orchestrator_design.md`, `team.md`
 
 ### B-01
 - 커밋: `feat(db): 채팅 세션 테이블 스키마 추가`
@@ -132,6 +170,7 @@
   - 기대 결과: 실패 없이 통과
 
 ## Phase C. 텍스트 대화형 오케스트레이션
+- 필수 참조: `docs/api.md`, `docs/orchestrator_design.md`, `docs/mvp.md`, `docs/voice_chat_mvp_spec.md`, `team.md`
 
 ### C-01
 - 커밋: `feat(schema): chat session/slot 응답 스키마 추가`
@@ -214,7 +253,8 @@
   - 명령: `cd backend && uv run pytest -q backend/tests/test_chat_api.py`
   - 기대 결과: 세션 생성/메시지/게이트 판정 테스트 통과
 
-## Phase D. 음성 턴 (스무고개)
+## Phase D. 음성 턴 (채팅 병행)
+- 필수 참조: `docs/voice_chat_mvp_spec.md`, `docs/voice_agent.md`, `docs/api.md`, `docs/openai_stack.md`, `team.md`
 
 ### D-01
 - 커밋: `feat(api): POST /api/chat/session/{id}/voice-turn 추가`
@@ -259,7 +299,7 @@
 
 ### D-05
 - 커밋: `feat(voice-agent): 질문 톤/속도 프리셋 추가`
-- 목표: 스무고개 스타일 질문 톤 고정
+- 목표: 탐색형 질문 톤 고정
 - 변경 파일
   - `backend/app/agents/voice_agent.py` (신규)
   - `docs/voice_agent.md`
@@ -287,6 +327,7 @@
   - 기대 결과: 강제 실패 시 텍스트 폴백 경로 통과
 
 ## Phase E. 전략/크리에이티브/보이스 패키지
+- 필수 참조: `docs/prompt_contracts.md`, `docs/voice_agent.md`, `docs/orchestrator_design.md`, `docs/api.md`, `team.md`
 
 ### E-01
 - 커밋: `feat(schema): strategy 출력 스키마 고정`
@@ -359,6 +400,7 @@
   - 기대 결과: 텍스트/음성 E2E 시나리오 통과
 
 ## Phase F. 프론트엔드 대화 UX
+- 필수 참조: `docs/frontend_architecture.md`, `docs/api.md`, `docs/mvp.md`, `docs/voice_chat_mvp_spec.md`, `team.md`
 
 ### F-01
 - 커밋: `feat(frontend-api): chat/voice API client 추가`
@@ -443,6 +485,7 @@
   - 기대 결과: 핵심 시나리오 테스트 통과
 
 ## Phase G. 미디어 품질/운영 안정화
+- 필수 참조: `docs/openai_stack.md`, `docs/sora_video_optimization.md`, `docs/api.md`, `docs/test_runbook.md`, `team.md`
 
 ### G-01
 - 커밋: `fix(media): 영상 길이 파라미터를 5/10/15/20으로 정합화`
@@ -522,6 +565,7 @@
   - 기대 결과: 운영/복구/체크리스트 키워드 포함 확인
 
 ## 3. 릴리즈 직전 정리 커밋
+- 필수 참조: `README.md`, `docs/release_notes_mvp.md`, `docs/codex_workflow.md`, `team.md`
 
 ### R-01
 - 커밋: `chore: .env.example 및 실행 스크립트 정리`

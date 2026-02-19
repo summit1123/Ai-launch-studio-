@@ -1,12 +1,62 @@
-# API 명세
+# API 명세 (전체 카탈로그)
 
-## 1. 현재 API (구현됨)
-기본 prefix: `/api`
+## 1. 문서 목적
+- 이 문서는 이 프로젝트에서 필요한 API를 **현재 구현(v1)**과 **목표 확장(v2)**으로 분리해 정의한다.
+- 팀 분업 시 API 누락/중복을 방지하기 위해 엔드포인트 카탈로그와 이벤트 계약을 함께 제공한다.
 
-### 1.1 런치 패키지 실행
+## 2. 공통 규칙
+- 기본 prefix: `/api`
+- 인증: MVP에서는 미적용 (추후 토큰/세션 인증 확장)
+- 공통 오류 포맷
+```json
+{
+  "error": {
+    "code": "STRING_CODE",
+    "message": "사용자 메시지",
+    "retryable": true
+  }
+}
+```
+- 시간 필드: ISO-8601 UTC 문자열
+
+## 3. API 그룹과 상태
+- `PLATFORM`: 헬스/문서/정적 에셋
+- `LAUNCH_V1`: 현재 단건 실행 API
+- `CHAT_V2`: 세션 기반 채팅 API
+- `VOICE_V2`: 음성 턴/STT/TTS API
+- `RUN_V2`: 생성 결과/내보내기 API
+- `JOB_V2`: 비동기 작업 상태 API
+
+`상태` 표기:
+- `구현됨`: 현재 코드에 존재
+- `계획`: 문서 기준 목표 API
+
+## 4. PLATFORM API
+### 4.1 헬스체크
+- 상태: 구현됨
+- `GET /health`
+- 응답
+```json
+{"status": "ok"}
+```
+
+### 4.2 OpenAPI 문서
+- 상태: 구현됨 (FastAPI 기본)
+- `GET /openapi.json`
+- `GET /docs`
+
+### 4.3 정적 에셋
+- 상태: 구현됨
+- `GET /static/{path}`
+- 용도: 생성된 포스터/영상/오디오 파일 제공
+
+## 5. LAUNCH_V1 API (현재 운영)
+### 5.1 런치 실행
+- 상태: 구현됨
 - `POST /api/launch/run`
+- 설명: 브리프 단건 입력 -> 전체 런치 패키지 생성
 
-요청 예시:
+요청 본문
 ```json
 {
   "brief": {
@@ -25,7 +75,7 @@
 }
 ```
 
-응답 예시:
+응답 본문 (요약)
 ```json
 {
   "package": {
@@ -38,33 +88,31 @@
     "launch_plan": {},
     "campaign_strategy": {},
     "budget_and_kpi": {},
-    "marketing_assets": {
-      "video_script": "...",
-      "poster_brief": "...",
-      "product_copy": "...",
-      "video_url": "/static/assets/video_xxx.mp4",
-      "poster_image_url": "/static/assets/poster_xxx.png"
-    },
+    "marketing_assets": {},
     "risks_and_mitigations": [],
     "timeline": []
   }
 }
 ```
 
-### 1.2 이력 API
+### 5.2 런치 이력 목록
+- 상태: 구현됨
 - `GET /api/launch/history?limit=20&offset=0&q=`
+
+### 5.3 런치 이력 상세
+- 상태: 구현됨
 - `GET /api/launch/history/{request_id}`
+
+### 5.4 런치 이력 삭제
+- 상태: 구현됨
 - `DELETE /api/launch/history/{request_id}`
 
-### 1.3 헬스체크
-- `GET /health`
-
-## 2. 목표 API (대화형/음성형 MVP)
-
-### 2.1 세션 시작
+## 6. CHAT_V2 API (목표)
+### 6.1 세션 시작
+- 상태: 계획
 - `POST /api/chat/session`
 
-요청:
+요청
 ```json
 {
   "locale": "ko-KR",
@@ -72,7 +120,7 @@
 }
 ```
 
-응답:
+응답
 ```json
 {
   "session_id": "sess_xxx",
@@ -86,68 +134,157 @@
 }
 ```
 
-### 2.2 텍스트 턴 스트리밍
+### 6.2 세션 조회
+- 상태: 계획
+- `GET /api/chat/session/{session_id}`
+- 설명: 현재 상태/슬롯/진행률 조회
+
+### 6.3 텍스트 턴 (비스트림)
+- 상태: 계획
+- `POST /api/chat/session/{session_id}/message`
+- 설명: 단건 응답 필요 시 사용
+
+### 6.4 텍스트 턴 (스트림)
+- 상태: 계획
 - `POST /api/chat/session/{session_id}/message/stream`
-- content type: `text/event-stream`
+- Content-Type: `text/event-stream`
+- 설명: 플래너/전략/크리에이티브/보이스 이벤트를 순차 전달
 
-### 2.3 음성 턴
+## 7. VOICE_V2 API (목표)
+### 7.1 음성 턴
+- 상태: 계획
 - `POST /api/chat/session/{session_id}/voice-turn`
-- multipart/form-data (`audio` 파일 업로드)
-- STT -> 슬롯 업데이트 -> 다음 질문 반환
+- Content-Type: `multipart/form-data`
+- 필드: `audio`, `format`, `locale`(선택)
 
-응답 예시:
+응답
 ```json
 {
   "transcript": "우리 제품은 비건 스킨케어예요",
-  "slot_updates": [{"path": "product.category", "value": "비건 스킨케어"}],
+  "slot_updates": [
+    {"path": "product.category", "value": "비건 스킨케어", "confidence": 0.91}
+  ],
   "next_question": "주요 타겟 고객은 누구인가요?",
   "state": "CHAT_COLLECTING"
 }
 ```
 
-### 2.4 어시스턴트 음성 생성
+### 7.2 어시스턴트 음성 생성
+- 상태: 계획
 - `POST /api/chat/session/{session_id}/assistant-voice`
-- 입력 텍스트를 TTS로 변환해 재생 URL 반환
+- 설명: 질문 텍스트를 TTS 오디오로 변환
 
-### 2.5 실행 결과 조회/내보내기
-- `GET /api/runs/{run_id}`
-- `POST /api/runs/{run_id}/export`
-
-## 3. 스트리밍 이벤트
-```text
-event: planner.delta
-data: {"text":"좋아요. 타겟을 조금 더 좁혀볼게요."}
-
-event: slot.updated
-data: {"path":"target.who","value":"25-34 직장인 여성"}
-
-event: stage.changed
-data: {"state":"GEN_STRATEGY"}
-
-event: strategy.delta
-data: {"text":"시장평가 요약..."}
-
-event: creative.delta
-data: {"text":"카피 초안..."}
-
-event: voice.delta
-data: {"text":"나레이션 초안..."}
-
-event: run.completed
-data: {"run_id":"run_xxx"}
-```
-
-## 4. 오류 포맷
+요청
 ```json
 {
-  "error": {
-    "code": "TIMEOUT",
-    "message": "에이전트 실행 시간이 초과되었습니다.",
-    "retryable": true
-  }
+  "text": "좋아요. 주요 타겟 고객은 누구인가요?",
+  "voice_preset": "friendly_ko",
+  "format": "mp3"
 }
 ```
 
-## 5. 버전 전략
-- 현재 `/api/launch/*`는 호환성 유지
-- 대화/음성/스트리밍 API는 신규 버전으로 점진 도입
+응답
+```json
+{
+  "audio_url": "/static/assets/tts_xxx.mp3",
+  "duration_ms": 1820
+}
+```
+
+## 8. RUN_V2 API (목표)
+### 8.1 생성 트리거
+- 상태: 계획
+- `POST /api/runs/{session_id}/generate`
+- 설명: 게이트 충족 후 `strategy -> creative -> voice` 실행
+
+응답
+```json
+{
+  "run_id": "run_xxx",
+  "state": "GEN_STRATEGY"
+}
+```
+
+### 8.2 실행 결과 조회
+- 상태: 계획
+- `GET /api/runs/{run_id}`
+
+### 8.3 실행 결과 내보내기
+- 상태: 계획
+- `POST /api/runs/{run_id}/export`
+- 설명: zip 또는 다중 파일 링크 반환
+
+### 8.4 실행 결과 목록
+- 상태: 계획
+- `GET /api/runs?session_id={session_id}&limit=20&offset=0`
+
+## 9. JOB_V2 API (목표)
+### 9.1 작업 상태 조회
+- 상태: 계획
+- `GET /api/jobs/{job_id}`
+- 설명: 영상/오디오 합성 등 비동기 작업 상태
+
+응답
+```json
+{
+  "job_id": "job_xxx",
+  "type": "video_render",
+  "status": "queued",
+  "progress": 32,
+  "run_id": "run_xxx"
+}
+```
+
+### 9.2 작업 목록 조회
+- 상태: 계획
+- `GET /api/jobs?run_id={run_id}`
+
+## 10. 스트리밍 이벤트 계약 (CHAT_V2)
+### 10.1 이벤트 엔벨로프
+```json
+{
+  "event_id": "evt_00124",
+  "seq": 124,
+  "session_id": "sess_xxx",
+  "type": "planner.delta",
+  "created_at": "2026-02-19T15:00:00Z",
+  "data": {}
+}
+```
+
+### 10.2 이벤트 타입
+- `session.started`
+- `planner.delta`
+- `slot.updated`
+- `stage.changed`
+- `strategy.delta`
+- `creative.delta`
+- `voice.delta`
+- `asset.ready`
+- `run.completed`
+- `error`
+
+### 10.3 이벤트 처리 규칙
+- `seq`는 단조 증가
+- 중복 `event_id`는 무시
+- `run.completed` 또는 `error` 수신 시 스트림 종료 처리
+
+## 11. 주요 오류 코드
+- `INVALID_INPUT`: 요청 본문 검증 실패
+- `SESSION_NOT_FOUND`: 없는 세션 ID
+- `GATE_NOT_READY`: 게이트 미충족 상태에서 생성 요청
+- `MEDIA_TIMEOUT`: 영상/오디오 작업 타임아웃
+- `UPSTREAM_ERROR`: 모델/API 호출 실패
+- `INTERNAL_ERROR`: 서버 내부 오류
+
+## 12. 버전 전략
+- `LAUNCH_V1`은 기존 데모 호환을 위해 유지
+- 신규 기능은 `CHAT_V2/VOICE_V2/RUN_V2/JOB_V2` 그룹으로 확장
+- 프론트는 기능 플래그로 v1/v2 전환 가능하도록 설계
+
+## 13. 관련 문서
+- `docs/backend_architecture.md`
+- `docs/frontend_architecture.md`
+- `docs/orchestrator_design.md`
+- `docs/voice_chat_mvp_spec.md`
+- `docs/db_schema.md`

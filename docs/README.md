@@ -24,5 +24,7 @@
 - `uv_setup.md`: 팀 온보딩(uv 기반)
 
 ## 운영/협업
+- `../team.md`: 팀 협업 규칙/분담/머지 기준
+- `../planning.md`: 커밋 단위 실행 계획
 - `codex_workflow.md`: Codex 작업 표준 워크플로
 - `skills_guide.md`: 스킬 선택/운영 가이드

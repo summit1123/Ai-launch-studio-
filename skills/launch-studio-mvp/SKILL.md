@@ -9,10 +9,18 @@ description: "AI Launch Studio MVP 작업(브리프 수집/전략/크리에이�
 제품 보유 사용자를 위한 프로모션 코파일럿 MVP를 일관된 방식으로 구현/수정한다.
 
 ## 실행 규칙
-1. 먼저 `docs/mvp.md`, `docs/voice_chat_mvp_spec.md`를 확인한다.
+1. 먼저 `team.md`, `planning.md`, `docs/mvp.md`, `docs/voice_chat_mvp_spec.md`를 확인한다.
 2. API/DB 변경 전 `docs/api.md`, `docs/db_schema.md`를 확인한다.
 3. 오케스트레이터 변경 전 `docs/orchestrator_design.md`를 확인한다.
 4. 보이스 관련 변경 시 `docs/voice_agent.md`를 확인한다.
+5. OpenAI 기능/파라미터 변경 시 `docs/openai_stack.md`, `docs/sora_video_optimization.md`를 확인한다.
+
+## 단계별 참조 우선순위
+- 환경/온보딩: `docs/uv_setup.md`, `backend/README.md`, `frontend/README.md`
+- 백엔드 계약: `docs/api.md`, `docs/db_schema.md`, `docs/orchestrator_design.md`
+- 음성 경로: `docs/voice_chat_mvp_spec.md`, `docs/voice_agent.md`
+- 크리에이티브/미디어: `docs/openai_stack.md`, `docs/sora_video_optimization.md`
+- 협업/릴리즈: `team.md`, `docs/codex_workflow.md`, `docs/test_runbook.md`
 
 ## 출력 형식
 - 변경 요약
