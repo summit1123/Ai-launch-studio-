@@ -194,7 +194,7 @@
 
 ## 8. RUN_V2 API (목표)
 ### 8.1 생성 트리거
-- 상태: 계획
+- 상태: 구현됨
 - `POST /api/runs/{session_id}/generate`
 - 설명: 게이트 충족 후 `research -> strategy -> creative -> voice` 실행
 
@@ -207,7 +207,7 @@
 ```
 
 ### 8.2 실행 결과 조회
-- 상태: 계획
+- 상태: 구현됨
 - `GET /api/runs/{run_id}`
 
 응답 (요약)

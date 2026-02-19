@@ -25,6 +25,17 @@ class ChatSessionRecord:
     completeness: float
 
 
+@dataclass
+class RunOutputRecord:
+    run_id: str
+    session_id: str
+    request_id: str
+    state: ChatState
+    created_at: str
+    updated_at: str
+    package: LaunchPackage
+
+
 class SQLiteHistoryRepository:
     """Persists launch outputs for replay and audit."""
 
@@ -101,6 +112,40 @@ class SQLiteHistoryRepository:
                 """
                 CREATE INDEX IF NOT EXISTS idx_chat_sessions_updated
                 ON chat_sessions(updated_at DESC)
+                """
+            )
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS run_outputs (
+                    run_id TEXT PRIMARY KEY,
+                    session_id TEXT NOT NULL,
+                    request_id TEXT NOT NULL,
+                    state TEXT NOT NULL,
+                    package_json TEXT NOT NULL,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL,
+                    FOREIGN KEY(session_id) REFERENCES chat_sessions(session_id)
+                )
+                """
+            )
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS media_assets (
+                    asset_id TEXT PRIMARY KEY,
+                    run_id TEXT NOT NULL,
+                    asset_type TEXT NOT NULL,
+                    local_path TEXT,
+                    remote_url TEXT,
+                    metadata_json TEXT NOT NULL,
+                    created_at TEXT NOT NULL,
+                    FOREIGN KEY(run_id) REFERENCES run_outputs(run_id)
+                )
+                """
+            )
+            conn.execute(
+                """
+                CREATE INDEX IF NOT EXISTS idx_run_outputs_session_created
+                ON run_outputs(session_id, created_at DESC)
                 """
             )
             conn.commit()
@@ -314,6 +359,99 @@ class SQLiteHistoryRepository:
                 ),
             )
             conn.commit()
+
+    def save_run_output(
+        self,
+        *,
+        session_id: str,
+        launch_package: LaunchPackage,
+        state: ChatState = "DONE",
+    ) -> str:
+        run_id = launch_package.request_id
+        now = self._utc_now()
+        package_json = launch_package.model_dump_json()
+        with self._connect() as conn:
+            conn.execute(
+                """
+                INSERT OR REPLACE INTO run_outputs (
+                    run_id,
+                    session_id,
+                    request_id,
+                    state,
+                    package_json,
+                    created_at,
+                    updated_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    run_id,
+                    session_id,
+                    launch_package.request_id,
+                    state,
+                    package_json,
+                    now,
+                    now,
+                ),
+            )
+            conn.commit()
+        return run_id
+
+    def get_run_output(self, *, run_id: str) -> RunOutputRecord | None:
+        with self._connect() as conn:
+            row = conn.execute(
+                """
+                SELECT run_id, session_id, request_id, state, package_json, created_at, updated_at
+                FROM run_outputs
+                WHERE run_id = ?
+                """,
+                (run_id,),
+            ).fetchone()
+
+        if row is None:
+            return None
+
+        package = LaunchPackage.model_validate_json(row["package_json"])
+        return RunOutputRecord(
+            run_id=row["run_id"],
+            session_id=row["session_id"],
+            request_id=row["request_id"],
+            state=row["state"],
+            created_at=row["created_at"],
+            updated_at=row["updated_at"],
+            package=package,
+        )
+
+    def list_run_outputs(self, *, session_id: str, limit: int = 20, offset: int = 0) -> list[RunOutputRecord]:
+        safe_limit = max(1, min(limit, 100))
+        safe_offset = max(0, offset)
+        with self._connect() as conn:
+            rows = conn.execute(
+                """
+                SELECT run_id, session_id, request_id, state, package_json, created_at, updated_at
+                FROM run_outputs
+                WHERE session_id = ?
+                ORDER BY created_at DESC
+                LIMIT ? OFFSET ?
+                """,
+                (session_id, safe_limit, safe_offset),
+            ).fetchall()
+
+        results: list[RunOutputRecord] = []
+        for row in rows:
+            package = LaunchPackage.model_validate_json(row["package_json"])
+            results.append(
+                RunOutputRecord(
+                    run_id=row["run_id"],
+                    session_id=row["session_id"],
+                    request_id=row["request_id"],
+                    state=row["state"],
+                    created_at=row["created_at"],
+                    updated_at=row["updated_at"],
+                    package=package,
+                )
+            )
+        return results
 
     def list_runs(
         self,
