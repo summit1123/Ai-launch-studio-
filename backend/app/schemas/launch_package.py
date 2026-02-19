@@ -223,6 +223,41 @@ class ChatMessageResponse(BaseModel):
     gate: GateStatus
 
 
+class VoiceTurnResponse(BaseModel):
+    session_id: str
+    transcript: str
+    state: ChatState
+    next_question: str
+    slot_updates: list[SlotUpdate] = Field(default_factory=list)
+    brief_slots: BriefSlots
+    gate: GateStatus
+
+
+class AssistantVoiceRequest(BaseModel):
+    text: str = Field(min_length=1, max_length=1200)
+    voice_preset: Literal["friendly_ko", "calm_ko", "neutral_ko"] = "friendly_ko"
+    format: Literal["mp3", "wav"] = "mp3"
+
+
+class AssistantVoiceResponse(BaseModel):
+    audio_url: str
+    format: Literal["mp3", "wav"]
+    bytes_size: int
+
+
+class RunGenerateResponse(BaseModel):
+    run_id: str
+    session_id: str
+    state: ChatState
+
+
+class RunGetResponse(BaseModel):
+    run_id: str
+    session_id: str
+    state: ChatState
+    package: LaunchPackage
+
+
 class LaunchRunResponse(BaseModel):
     package: LaunchPackage
 

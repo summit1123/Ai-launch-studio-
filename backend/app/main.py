@@ -10,8 +10,8 @@ from fastapi.staticfiles import StaticFiles
 from app.agents import ChatOrchestrator, MainOrchestrator
 from app.core.config import get_settings
 from app.repositories import SQLiteHistoryRepository
-from app.routers import chat, launch
-from app.services import AgentRuntime
+from app.routers import chat, launch, voice
+from app.services import AgentRuntime, VoiceService
 
 settings = get_settings()
 app = FastAPI(title=settings.app_name)
@@ -37,14 +37,17 @@ runtime = AgentRuntime(
 )
 orchestrator = MainOrchestrator(runtime=runtime)
 chat_orchestrator = ChatOrchestrator()
+voice_service = VoiceService()
 history_repository = SQLiteHistoryRepository(db_path=settings.db_path)
 app.state.orchestrator = orchestrator
 app.state.chat_orchestrator = chat_orchestrator
+app.state.voice_service = voice_service
 app.state.settings = settings
 app.state.history_repository = history_repository
 
 app.include_router(launch.router, prefix=settings.api_prefix, tags=["launch"])
 app.include_router(chat.router, prefix=settings.api_prefix, tags=["chat"])
+app.include_router(voice.router, prefix=settings.api_prefix, tags=["voice"])
 
 
 @app.get("/health")

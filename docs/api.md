@@ -153,7 +153,7 @@
 
 ## 7. VOICE_V2 API (목표)
 ### 7.1 음성 턴
-- 상태: 계획
+- 상태: 구현됨
 - `POST /api/chat/session/{session_id}/voice-turn`
 - Content-Type: `multipart/form-data`
 - 필드: `audio`, `format`, `locale`(선택)
@@ -171,7 +171,7 @@
 ```
 
 ### 7.2 어시스턴트 음성 생성
-- 상태: 계획
+- 상태: 구현됨
 - `POST /api/chat/session/{session_id}/assistant-voice`
 - 설명: 질문 텍스트를 TTS 오디오로 변환
 

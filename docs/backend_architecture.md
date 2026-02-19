@@ -14,7 +14,8 @@
 - 저장소: `backend/app/repositories/sqlite_history.py`
 - 미디어 생성: `backend/app/services/media_service.py`
 - 현재는 `/api/launch/*` 단건 실행 + `/api/chat/session*` 세션 API와 텍스트 스트림 API가 구현되어 있다.
-- 음성 API, runs/jobs API는 아직 미구현 상태다.
+- 기본 음성 API(`voice-turn`, `assistant-voice`)가 구현되어 있다.
+- runs/jobs API는 아직 미구현 상태다.
 
 ## 3. 목표 구조 (To-Be)
 - `launch` API는 하위 호환으로 유지한다.

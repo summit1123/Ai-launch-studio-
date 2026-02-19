@@ -1,6 +1,8 @@
 """Public schema exports."""
 
 from app.schemas.launch_package import (
+    AssistantVoiceRequest,
+    AssistantVoiceResponse,
     AgentEnvelope,
     AgentPayload,
     BriefSlots,
@@ -31,12 +33,17 @@ from app.schemas.launch_package import (
     ProductSlots,
     ProductCopyOutput,
     ResearchOutput,
+    RunGenerateResponse,
+    RunGetResponse,
     SlotUpdate,
     TargetSlots,
     VideoScriptOutput,
+    VoiceTurnResponse,
 )
 
 __all__ = [
+    "AssistantVoiceRequest",
+    "AssistantVoiceResponse",
     "AgentEnvelope",
     "AgentPayload",
     "BriefSlots",
@@ -67,7 +74,10 @@ __all__ = [
     "ProductSlots",
     "ProductCopyOutput",
     "ResearchOutput",
+    "RunGenerateResponse",
+    "RunGetResponse",
     "SlotUpdate",
     "TargetSlots",
     "VideoScriptOutput",
+    "VoiceTurnResponse",
 ]
