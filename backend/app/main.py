@@ -7,7 +7,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
-from app.agents import ChatOrchestrator, MainOrchestrator
+from app.agents import ChatOrchestrator, MainOrchestrator, VoiceAgent
 from app.core.config import get_settings
 from app.repositories import SQLiteHistoryRepository
 from app.routers import chat, launch, runs, voice
@@ -37,10 +37,12 @@ runtime = AgentRuntime(
 )
 orchestrator = MainOrchestrator(runtime=runtime)
 chat_orchestrator = ChatOrchestrator()
+voice_agent = VoiceAgent()
 voice_service = VoiceService()
 history_repository = SQLiteHistoryRepository(db_path=settings.db_path)
 app.state.orchestrator = orchestrator
 app.state.chat_orchestrator = chat_orchestrator
+app.state.voice_agent = voice_agent
 app.state.voice_service = voice_service
 app.state.settings = settings
 app.state.history_repository = history_repository

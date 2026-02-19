@@ -5,7 +5,7 @@ from pathlib import Path
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from app.agents import ChatOrchestrator
+from app.agents import ChatOrchestrator, VoiceAgent
 from app.repositories import SQLiteHistoryRepository
 from app.routers import chat, voice
 
@@ -30,11 +30,17 @@ class _FakeVoiceService:
         return f"/static/assets/fake_tts.{audio_format}", 1234
 
 
-def _build_client(tmp_path: Path) -> TestClient:
+class _FakeVoiceServiceFailTranscribe(_FakeVoiceService):
+    async def transcribe(self, *, audio_bytes: bytes, filename: str, locale: str = "ko-KR") -> str:
+        return ""
+
+
+def _build_client(tmp_path: Path, *, fail_transcribe: bool = False) -> TestClient:
     app = FastAPI()
     app.state.history_repository = SQLiteHistoryRepository(db_path=str(tmp_path / "voice_api.db"))
     app.state.chat_orchestrator = ChatOrchestrator()
-    app.state.voice_service = _FakeVoiceService()
+    app.state.voice_agent = VoiceAgent()
+    app.state.voice_service = _FakeVoiceServiceFailTranscribe() if fail_transcribe else _FakeVoiceService()
     app.include_router(chat.router, prefix="/api")
     app.include_router(voice.router, prefix="/api")
     return TestClient(app)
@@ -71,3 +77,21 @@ def test_assistant_voice_returns_audio_url(tmp_path: Path) -> None:
     assert payload["audio_url"].startswith("/static/assets/")
     assert payload["format"] == "mp3"
     assert payload["bytes_size"] == 1234
+
+
+def test_voice_turn_transcribe_failure_returns_text_fallback(tmp_path: Path) -> None:
+    client = _build_client(tmp_path, fail_transcribe=True)
+    create_res = client.post("/api/chat/session", json={"locale": "ko-KR", "mode": "standard"})
+    session_id = create_res.json()["session_id"]
+
+    voice_res = client.post(
+        f"/api/chat/session/{session_id}/voice-turn",
+        files={"audio": ("sample.wav", b"fake-audio-bytes", "audio/wav")},
+        data={"locale": "ko-KR", "voice_preset": "calm_ko"},
+    )
+    assert voice_res.status_code == 200
+    payload = voice_res.json()
+    assert payload["transcript"] == ""
+    assert payload["state"] == "CHAT_COLLECTING"
+    assert payload["next_question"].startswith("천천히 정리해볼게요.")
+    assert payload["gate"]["ready"] is False
