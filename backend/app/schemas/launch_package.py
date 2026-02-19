@@ -272,6 +272,30 @@ class RunGetResponse(BaseModel):
     package: LaunchPackage
 
 
+class MediaAssetItem(BaseModel):
+    asset_id: str
+    run_id: str
+    asset_type: str
+    local_path: str | None = None
+    remote_url: str | None = None
+    metadata: dict[str, Any] = Field(default_factory=dict)
+    created_at: datetime
+
+
+class RunAssetsGetResponse(BaseModel):
+    run_id: str
+    poster_image_url: str | None = None
+    video_url: str | None = None
+    items: list[MediaAssetItem] = Field(default_factory=list)
+
+
+class RunAssetsGenerateAsyncResponse(BaseModel):
+    job_id: str
+    run_id: str
+    session_id: str
+    status: JobStatus
+
+
 class JobGetResponse(BaseModel):
     job_id: str
     type: str

@@ -49,3 +49,61 @@ def test_process_turn_normalizes_video_seconds_and_returns_notice() -> None:
     assert turn.brief_slots.goal.video_seconds == 10
     assert "8초" in turn.assistant_message
     assert "10초" in turn.assistant_message
+
+
+def test_process_turn_maps_plain_answer_to_expected_product_name_slot() -> None:
+    orchestrator = ChatOrchestrator()
+    slots = BriefSlots()
+
+    turn = orchestrator.process_turn(
+        message="아이폰",
+        slots=slots,
+    )
+
+    assert turn.brief_slots.product.name == "아이폰"
+    assert turn.gate.ready is False
+    assert "아이폰" in turn.assistant_message
+    assert "제품 카테고리는 무엇인가요?" in turn.assistant_message
+
+
+def test_process_turn_accepts_plain_feature_list_when_feature_slot_is_expected() -> None:
+    orchestrator = ChatOrchestrator()
+    slots = BriefSlots()
+    slots.product.name = "테스트 세럼"
+    slots.product.category = "스킨케어"
+    slots.product.price_band = "mid"
+    slots.target.who = "20대 직장인"
+    slots.target.why = "피부 진정"
+    slots.channel.channels = ["Instagram"]
+    slots.goal.weekly_goal = "inquiry"
+
+    turn = orchestrator.process_turn(
+        message="저자극, 빠른 흡수, 비건 포뮬러",
+        slots=slots,
+    )
+
+    assert turn.state == "BRIEF_READY"
+    assert turn.gate.ready is True
+    assert len(turn.brief_slots.product.features) >= 3
+    assert "저자극" in turn.brief_slots.product.features
+
+
+def test_process_turn_does_not_treat_plain_sentence_as_feature_list() -> None:
+    orchestrator = ChatOrchestrator()
+    slots = BriefSlots()
+    slots.product.name = "테스트 세럼"
+    slots.product.category = "스킨케어"
+    slots.product.price_band = "mid"
+    slots.target.who = "20대 직장인"
+    slots.target.why = "피부 진정"
+    slots.channel.channels = ["Instagram"]
+    slots.goal.weekly_goal = "inquiry"
+
+    turn = orchestrator.process_turn(
+        message="카테고리는 스킨케어",
+        slots=slots,
+    )
+
+    assert turn.state == "CHAT_COLLECTING"
+    assert turn.brief_slots.product.features == []
+    assert "핵심 특징 3가지를 알려주세요" in turn.assistant_message

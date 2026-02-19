@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 import os
+import re
+from collections.abc import Mapping
 from typing import TypeVar
+from typing import get_origin
 
 import logging
 
@@ -128,39 +131,160 @@ class AgentRuntime:
         return self._coerce_output(final_output=final_output, output_type=output_type)
 
     def _coerce_output(self, *, final_output: object, output_type: type[OutputT]) -> OutputT | None:
+        if isinstance(final_output, output_type):
+            return final_output
+
+        if isinstance(final_output, str):
+            return self._validate_minimal_output(
+                output_type=output_type,
+                summary=final_output,
+                source="sdk-string",
+            )
+
+        if isinstance(final_output, dict):
+            validated = self._validate_dict_output(
+                output_type=output_type,
+                payload=final_output,
+            )
+            if validated is not None:
+                return validated
+
+        if hasattr(final_output, "model_dump"):
+            model_dump = getattr(final_output, "model_dump")
+            if callable(model_dump):
+                dumped = model_dump()
+                if isinstance(dumped, dict):
+                    validated = self._validate_dict_output(
+                        output_type=output_type,
+                        payload=dumped,
+                    )
+                    if validated is not None:
+                        return validated
+
+        return self._validate_minimal_output(
+            output_type=output_type,
+            summary=str(final_output),
+            source="sdk-fallback-stringified",
+        )
+
+    def _validate_dict_output(
+        self,
+        *,
+        output_type: type[OutputT],
+        payload: dict[str, object],
+    ) -> OutputT | None:
         try:
-            if isinstance(final_output, output_type):
-                return final_output
-
-            if isinstance(final_output, str):
-                return output_type.model_validate(
-                    {
-                        "summary": final_output,
-                        "key_points": [],
-                        "risks": [],
-                        "artifacts": {"source": "sdk-string"},
-                    }
-                )
-
-            if isinstance(final_output, dict):
-                return output_type.model_validate(final_output)
-
-            if hasattr(final_output, "model_dump"):
-                model_dump = getattr(final_output, "model_dump")
-                if callable(model_dump):
-                    return output_type.model_validate(model_dump())
+            return output_type.model_validate(payload)
         except ValidationError:
-            logger.warning("Output validation failed for %s", output_type.__name__)
+            logger.warning(
+                "Output validation failed for %s, attempting repair",
+                output_type.__name__,
+            )
+
+        repaired = self._repair_output_payload(payload=payload, output_type=output_type)
+        try:
+            return output_type.model_validate(repaired)
+        except ValidationError:
+            logger.warning("Output repair failed for %s", output_type.__name__)
             return None
 
+    def _validate_minimal_output(
+        self,
+        *,
+        output_type: type[OutputT],
+        summary: str,
+        source: str,
+    ) -> OutputT | None:
+        safe_summary = summary.strip() or "에이전트 응답을 요약하지 못했습니다."
         try:
             return output_type.model_validate(
                 {
-                    "summary": str(final_output),
+                    "summary": safe_summary,
                     "key_points": [],
                     "risks": [],
-                    "artifacts": {"source": "sdk-fallback-stringified"},
+                    "artifacts": {"source": source},
                 }
             )
         except ValidationError:
             return None
+
+    def _repair_output_payload(
+        self,
+        *,
+        payload: dict[str, object],
+        output_type: type[OutputT],
+    ) -> dict[str, object]:
+        repaired: dict[str, object] = dict(payload)
+
+        summary = repaired.get("summary")
+        if not isinstance(summary, str) or not summary.strip():
+            summary = self._extract_summary_candidate(repaired)
+        repaired["summary"] = summary
+
+        repaired["key_points"] = self._coerce_text_list(repaired.get("key_points"))
+        repaired["risks"] = self._coerce_text_list(repaired.get("risks"))
+        artifacts = repaired.get("artifacts")
+        repaired["artifacts"] = artifacts if isinstance(artifacts, dict) else {}
+
+        for key, value in list(repaired.items()):
+            if key.endswith("_krw") and isinstance(value, Mapping):
+                repaired[key] = self._coerce_int_dict(value)
+
+        for field_name, field in output_type.model_fields.items():
+            if field_name not in repaired:
+                continue
+            origin = get_origin(field.annotation)
+            if origin is list:
+                repaired[field_name] = self._coerce_text_list(repaired[field_name])
+            elif origin is dict and not isinstance(repaired[field_name], dict):
+                repaired[field_name] = {}
+
+        return repaired
+
+    @staticmethod
+    def _extract_summary_candidate(payload: dict[str, object]) -> str:
+        for key in ("overview", "result", "message", "text", "요약"):
+            value = payload.get(key)
+            if isinstance(value, str) and value.strip():
+                return value.strip()
+        compact = str(payload).strip()
+        if len(compact) > 300:
+            compact = compact[:300]
+        return compact or "에이전트 응답 요약"
+
+    @staticmethod
+    def _coerce_text_list(value: object) -> list[str]:
+        if value is None:
+            return []
+        if isinstance(value, list):
+            return [str(item).strip() for item in value if str(item).strip()]
+        if isinstance(value, str):
+            parts = re.split(r"[,\n/|;·]+", value)
+            return [part.strip() for part in parts if part.strip()]
+        item = str(value).strip()
+        return [item] if item else []
+
+    @staticmethod
+    def _coerce_int_dict(value: Mapping[object, object]) -> dict[str, int]:
+        converted: dict[str, int] = {}
+        for key, raw in value.items():
+            numeric = AgentRuntime._coerce_int(raw)
+            if numeric is None:
+                continue
+            converted[str(key)] = numeric
+        return converted
+
+    @staticmethod
+    def _coerce_int(raw: object) -> int | None:
+        if isinstance(raw, bool):
+            return None
+        if isinstance(raw, int):
+            return raw
+        if isinstance(raw, float):
+            return int(round(raw))
+        if isinstance(raw, str):
+            cleaned = raw.replace(",", "").replace(" ", "")
+            match = re.search(r"-?\d+", cleaned)
+            if match:
+                return int(match.group(0))
+        return None

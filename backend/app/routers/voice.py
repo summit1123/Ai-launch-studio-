@@ -75,8 +75,19 @@ async def _process_voice_turn(
 
     if record.state != "CHAT_COLLECTING":
         gate = chat_orchestrator.evaluate_gate(record.brief_slots)
+        dialogue_service = getattr(request.app.state, "onboarding_dialogue_service", None)
+        assistant_message = "브리프 수집이 완료되었습니다. 다음 생성 단계를 실행해 주세요."
+        if dialogue_service is not None:
+            assistant_message = await dialogue_service.compose_reply(
+                fallback_message=assistant_message,
+                state=record.state,
+                gate=gate,
+                brief_slots=record.brief_slots,
+                user_message=transcript,
+                locale=locale,
+            )
         next_question = voice_agent.format_question(
-            question="브리프 수집이 완료되었습니다. 다음 생성 단계를 실행해 주세요.",
+            question=assistant_message,
             preset=voice_preset,
         )
         history_repository.append_chat_message(
@@ -95,8 +106,19 @@ async def _process_voice_turn(
         )
 
     turn = chat_orchestrator.process_turn(message=transcript, slots=record.brief_slots)
+    dialogue_service = getattr(request.app.state, "onboarding_dialogue_service", None)
+    assistant_message = turn.assistant_message
+    if dialogue_service is not None:
+        assistant_message = await dialogue_service.compose_reply(
+            fallback_message=assistant_message,
+            state=turn.state,
+            gate=turn.gate,
+            brief_slots=turn.brief_slots,
+            user_message=transcript,
+            locale=locale,
+        )
     formatted_question = voice_agent.format_question(
-        question=turn.assistant_message,
+        question=assistant_message,
         preset=voice_preset,
     )
     history_repository.update_chat_state_and_slots(

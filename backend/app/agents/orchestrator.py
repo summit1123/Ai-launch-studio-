@@ -47,7 +47,12 @@ class MainOrchestrator:
         self._poster = PosterAgent(runtime)
         self._product_copy = ProductCopyAgent(runtime)
 
-    async def run(self, request: LaunchRunRequest) -> LaunchPackage:
+    async def run(
+        self,
+        request: LaunchRunRequest,
+        *,
+        include_media: bool = True,
+    ) -> LaunchPackage:
         brief = request.brief
         timeline: list[AgentEnvelope] = []
         t0 = time.monotonic()
@@ -131,18 +136,18 @@ class MainOrchestrator:
             ]
         )
 
-        # Phase 4: Media generation (best-effort)
         poster_image_url = None
         video_url = None
-        poster_image_url = await self._media.generate_poster(
-            headline=poster.headline,
-            brief=poster.subheadline or poster.summary,
-            keywords=poster.key_visual_keywords,
-        )
-        video_url = await self._media.generate_video(
-            prompt=f"Cinematic product launch video for '{brief.product_name}'. {video.narration_script}",
-            seconds=brief.video_seconds,
-        )
+        if include_media:
+            poster_image_url = await self._media.generate_poster(
+                headline=poster.headline,
+                brief=poster.subheadline or poster.summary,
+                keywords=poster.key_visual_keywords,
+            )
+            video_url = await self._media.generate_video(
+                prompt=f"Cinematic product launch video for '{brief.product_name}'. {video.narration_script}",
+                seconds=brief.video_seconds,
+            )
 
         package = LaunchPackage(
             request_id=str(uuid4()),
@@ -170,6 +175,22 @@ class MainOrchestrator:
         )
         logger.info("Pipeline completed for '%s' in %.1fs", brief.product_name, time.monotonic() - t0)
         return package
+
+    async def generate_media_assets(self, package: LaunchPackage) -> MarketingAssets:
+        assets = package.marketing_assets.model_copy(deep=True)
+        assets.poster_image_url = await self._media.generate_poster(
+            headline=assets.poster_headline or package.brief.product_name,
+            brief=assets.poster_brief or package.campaign_strategy.summary,
+            keywords=package.campaign_strategy.message_pillars[:4],
+        )
+        assets.video_url = await self._media.generate_video(
+            prompt=(
+                f"Cinematic product launch video for '{package.brief.product_name}'. "
+                f"{assets.video_script}"
+            ),
+            seconds=package.brief.video_seconds,
+        )
+        return assets
 
     @staticmethod
     def _context_block(parts: list[tuple[str, AgentPayload]]) -> str:

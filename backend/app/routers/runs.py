@@ -16,6 +16,10 @@ from app.schemas import (
     LaunchBrief,
     LaunchPackage,
     LaunchRunRequest,
+    MarketingAssets,
+    MediaAssetItem,
+    RunAssetsGenerateAsyncResponse,
+    RunAssetsGetResponse,
     RunGenerateAsyncResponse,
     RunGenerateResponse,
     RunGetResponse,
@@ -27,6 +31,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 SYNC_RUN_TIMEOUT_SECONDS = 180
 ASYNC_RUN_TIMEOUT_SECONDS = 1_800
+ASYNC_ASSET_TIMEOUT_SECONDS = 1_800
 
 
 @router.post("/runs/{session_id}/generate", response_model=RunGenerateResponse)
@@ -58,6 +63,7 @@ async def generate_run(session_id: str, request: Request) -> RunGenerateResponse
             mode=record.mode,
             completeness=gate.completeness,
             timeout_seconds=SYNC_RUN_TIMEOUT_SECONDS,
+            include_media=False,
         )
     except asyncio.TimeoutError:
         _set_session_failed(
@@ -118,6 +124,7 @@ async def generate_run_async(session_id: str, request: Request) -> RunGenerateAs
                 mode=record.mode,
                 completeness=gate.completeness,
                 timeout_seconds=ASYNC_RUN_TIMEOUT_SECONDS,
+                include_media=False,
             )
         except asyncio.TimeoutError:
             _set_session_failed(
@@ -157,6 +164,103 @@ async def generate_run_async(session_id: str, request: Request) -> RunGenerateAs
     )
 
 
+@router.post(
+    "/runs/{run_id}/assets/generate/async",
+    response_model=RunAssetsGenerateAsyncResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+async def generate_run_assets_async(run_id: str, request: Request) -> RunAssetsGenerateAsyncResponse:
+    history_repository: SQLiteHistoryRepository = request.app.state.history_repository
+    orchestrator: MainOrchestrator = request.app.state.orchestrator
+    media_jobs: MediaJobsService = request.app.state.media_jobs
+
+    run_record = history_repository.get_run_output(run_id=run_id)
+    if run_record is None:
+        raise HTTPException(status_code=404, detail="Run not found")
+
+    job = media_jobs.create_job(job_type="asset_generation", session_id=run_record.session_id)
+
+    async def _worker() -> None:
+        media_jobs.mark_running(job_id=job.job_id, progress=10)
+        try:
+            media_jobs.mark_progress(job_id=job.job_id, progress=35)
+            assets = await asyncio.wait_for(
+                _generate_assets(orchestrator=orchestrator, package=run_record.package),
+                timeout=ASYNC_ASSET_TIMEOUT_SECONDS,
+            )
+            media_jobs.mark_progress(job_id=job.job_id, progress=80)
+            _persist_generated_assets(
+                history_repository=history_repository,
+                run_id=run_id,
+                assets=assets,
+            )
+        except asyncio.TimeoutError:
+            media_jobs.mark_failed(job_id=job.job_id, error="Asset generation timed out")
+            return
+        except Exception as exc:
+            logger.exception("Async asset generation failed for run '%s'", run_id)
+            media_jobs.mark_failed(job_id=job.job_id, error=str(exc))
+            return
+
+        media_jobs.mark_completed(job_id=job.job_id, run_id=run_id)
+
+    def _run_worker() -> None:
+        try:
+            asyncio.run(_worker())
+        except Exception:
+            logger.exception("Async asset worker crashed for job '%s'", job.job_id)
+            media_jobs.mark_failed(job_id=job.job_id, error="Async asset worker crashed")
+
+    threading.Thread(target=_run_worker, daemon=True).start()
+
+    return RunAssetsGenerateAsyncResponse(
+        job_id=job.job_id,
+        run_id=run_id,
+        session_id=run_record.session_id,
+        status=job.status,
+    )
+
+
+@router.get("/runs/{run_id}/assets", response_model=RunAssetsGetResponse)
+async def get_run_assets(run_id: str, request: Request) -> RunAssetsGetResponse:
+    history_repository: SQLiteHistoryRepository = request.app.state.history_repository
+    run_record = history_repository.get_run_output(run_id=run_id)
+    if run_record is None:
+        raise HTTPException(status_code=404, detail="Run not found")
+
+    records = history_repository.list_media_assets(run_id=run_id)
+    items = [
+        MediaAssetItem(
+            asset_id=record.asset_id,
+            run_id=record.run_id,
+            asset_type=record.asset_type,
+            local_path=record.local_path,
+            remote_url=record.remote_url,
+            metadata=record.metadata,
+            created_at=record.created_at,
+        )
+        for record in records
+    ]
+
+    poster_image_url = run_record.package.marketing_assets.poster_image_url
+    video_url = run_record.package.marketing_assets.video_url
+    for record in records:
+        resolved_url = record.local_path or record.remote_url
+        if not resolved_url:
+            continue
+        if record.asset_type == "poster_image":
+            poster_image_url = resolved_url
+        elif record.asset_type == "video":
+            video_url = resolved_url
+
+    return RunAssetsGetResponse(
+        run_id=run_id,
+        poster_image_url=poster_image_url,
+        video_url=video_url,
+        items=items,
+    )
+
+
 @router.get("/runs/{run_id}", response_model=RunGetResponse)
 async def get_run(run_id: str, request: Request) -> RunGetResponse:
     history_repository: SQLiteHistoryRepository = request.app.state.history_repository
@@ -180,6 +284,7 @@ async def _run_pipeline(
     mode: str,
     completeness: float,
     timeout_seconds: int,
+    include_media: bool,
 ) -> str:
     history_repository.update_chat_state_and_slots(
         session_id=session_id,
@@ -193,7 +298,11 @@ async def _run_pipeline(
         mode=mode,
     )
     launch_package = await asyncio.wait_for(
-        orchestrator.run(launch_request),
+        _run_orchestrator(
+            orchestrator=orchestrator,
+            launch_request=launch_request,
+            include_media=include_media,
+        ),
         timeout=timeout_seconds,
     )
     return _save_run_outputs(
@@ -282,7 +391,19 @@ def _persist_media_assets(
     run_id: str,
     launch_package: LaunchPackage,
 ) -> None:
-    assets = launch_package.marketing_assets
+    _persist_generated_assets(
+        history_repository=history_repository,
+        run_id=run_id,
+        assets=launch_package.marketing_assets,
+    )
+
+
+def _persist_generated_assets(
+    *,
+    history_repository: SQLiteHistoryRepository,
+    run_id: str,
+    assets: MarketingAssets,
+) -> None:
     if assets.poster_image_url:
         history_repository.save_media_asset(
             run_id=run_id,
@@ -303,3 +424,26 @@ def _persist_media_assets(
                 "scene_count": len(assets.video_scene_plan),
             },
         )
+
+
+async def _run_orchestrator(
+    *,
+    orchestrator: MainOrchestrator,
+    launch_request: LaunchRunRequest,
+    include_media: bool,
+) -> LaunchPackage:
+    try:
+        return await orchestrator.run(launch_request, include_media=include_media)
+    except TypeError:
+        # Backward compatibility for fake orchestrators in tests.
+        return await orchestrator.run(launch_request)
+
+
+async def _generate_assets(
+    *,
+    orchestrator: MainOrchestrator,
+    package: LaunchPackage,
+) -> MarketingAssets:
+    if hasattr(orchestrator, "generate_media_assets"):
+        return await orchestrator.generate_media_assets(package)
+    return package.marketing_assets

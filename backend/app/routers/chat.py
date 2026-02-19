@@ -12,6 +12,9 @@ from fastapi.responses import StreamingResponse
 from app.agents import ChatOrchestrator
 from app.repositories import SQLiteHistoryRepository
 from app.schemas import (
+    BriefSlots,
+    ChatState,
+    GateStatus,
     ChatMessageRequest,
     ChatMessageResponse,
     ChatSessionCreateRequest,
@@ -25,6 +28,29 @@ router = APIRouter()
 def _sse_event(event_type: str, data: dict[str, object]) -> str:
     payload = json.dumps(data, ensure_ascii=False)
     return f"event: {event_type}\ndata: {payload}\n\n"
+
+
+async def _compose_assistant_message(
+    request: Request,
+    *,
+    fallback_message: str,
+    state: ChatState,
+    gate: GateStatus,
+    brief_slots: BriefSlots,
+    user_message: str,
+    locale: str,
+) -> str:
+    dialogue_service = getattr(request.app.state, "onboarding_dialogue_service", None)
+    if dialogue_service is None:
+        return fallback_message
+    return await dialogue_service.compose_reply(
+        fallback_message=fallback_message,
+        state=state,
+        gate=gate,
+        brief_slots=brief_slots,
+        user_message=user_message,
+        locale=locale,
+    )
 
 
 @router.post("/chat/session", response_model=ChatSessionCreateResponse)
@@ -47,6 +73,15 @@ async def create_chat_session(
         brief_slots=brief_slots,
         completeness=gate.completeness,
     )
+    assistant_message = await _compose_assistant_message(
+        request,
+        fallback_message=chat_orchestrator.first_question(),
+        state=state,
+        gate=gate,
+        brief_slots=brief_slots,
+        user_message="",
+        locale=request_body.locale,
+    )
     return ChatSessionCreateResponse(
         session_id=session_id,
         state=state,
@@ -54,7 +89,7 @@ async def create_chat_session(
         locale=request_body.locale,
         brief_slots=brief_slots,
         gate=gate,
-        assistant_message=chat_orchestrator.first_question(),
+        assistant_message=assistant_message,
     )
 
 
@@ -105,7 +140,15 @@ async def post_chat_message(
 
     if record.state != "CHAT_COLLECTING":
         gate = chat_orchestrator.evaluate_gate(record.brief_slots)
-        assistant_message = "브리프 수집이 완료되었습니다. 다음 생성 단계를 실행해 주세요."
+        assistant_message = await _compose_assistant_message(
+            request,
+            fallback_message="브리프 수집이 완료되었습니다. 다음 생성 단계를 실행해 주세요.",
+            state=record.state,
+            gate=gate,
+            brief_slots=record.brief_slots,
+            user_message=user_message,
+            locale=record.locale,
+        )
         history_repository.append_chat_message(
             session_id=session_id,
             role="assistant",
@@ -121,6 +164,15 @@ async def post_chat_message(
         )
 
     turn = chat_orchestrator.process_turn(message=user_message, slots=record.brief_slots)
+    assistant_message = await _compose_assistant_message(
+        request,
+        fallback_message=turn.assistant_message,
+        state=turn.state,
+        gate=turn.gate,
+        brief_slots=turn.brief_slots,
+        user_message=user_message,
+        locale=record.locale,
+    )
     history_repository.update_chat_state_and_slots(
         session_id=session_id,
         state=turn.state,
@@ -130,13 +182,13 @@ async def post_chat_message(
     history_repository.append_chat_message(
         session_id=session_id,
         role="assistant",
-        content=turn.assistant_message,
+        content=assistant_message,
     )
 
     return ChatMessageResponse(
         session_id=session_id,
         state=turn.state,
-        assistant_message=turn.assistant_message,
+        assistant_message=assistant_message,
         slot_updates=turn.slot_updates,
         brief_slots=turn.brief_slots,
         gate=turn.gate,
@@ -168,7 +220,15 @@ async def post_chat_message_stream(
 
     if record.state != "CHAT_COLLECTING":
         gate = chat_orchestrator.evaluate_gate(record.brief_slots)
-        assistant_message = "브리프 수집이 완료되었습니다. 다음 생성 단계를 실행해 주세요."
+        assistant_message = await _compose_assistant_message(
+            request,
+            fallback_message="브리프 수집이 완료되었습니다. 다음 생성 단계를 실행해 주세요.",
+            state=record.state,
+            gate=gate,
+            brief_slots=record.brief_slots,
+            user_message=user_message,
+            locale=record.locale,
+        )
         history_repository.append_chat_message(
             session_id=session_id,
             role="assistant",
@@ -192,6 +252,15 @@ async def post_chat_message_stream(
         return StreamingResponse(_ready_stream(), media_type="text/event-stream")
 
     turn = chat_orchestrator.process_turn(message=user_message, slots=record.brief_slots)
+    assistant_message = await _compose_assistant_message(
+        request,
+        fallback_message=turn.assistant_message,
+        state=turn.state,
+        gate=turn.gate,
+        brief_slots=turn.brief_slots,
+        user_message=user_message,
+        locale=record.locale,
+    )
     history_repository.update_chat_state_and_slots(
         session_id=session_id,
         state=turn.state,
@@ -201,7 +270,7 @@ async def post_chat_message_stream(
     history_repository.append_chat_message(
         session_id=session_id,
         role="assistant",
-        content=turn.assistant_message,
+        content=assistant_message,
     )
 
     async def _event_stream() -> AsyncIterator[str]:
@@ -210,7 +279,7 @@ async def post_chat_message_stream(
                 "slot.updated",
                 {"slot_updates": [slot.model_dump() for slot in turn.slot_updates]},
             )
-        yield _sse_event("planner.delta", {"text": turn.assistant_message})
+        yield _sse_event("planner.delta", {"text": assistant_message})
         if turn.state != record.state:
             yield _sse_event(
                 "stage.changed",

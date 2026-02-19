@@ -73,3 +73,20 @@ def test_chat_message_stream_returns_sse_events(tmp_path: Path) -> None:
     assert stream_res.headers["content-type"].startswith("text/event-stream")
     assert "event: planner.delta" in stream_res.text
     assert "event: run.completed" in stream_res.text
+
+
+def test_chat_message_accepts_plain_answer_for_current_question(tmp_path: Path) -> None:
+    client = _build_client(tmp_path)
+    create_res = client.post("/api/chat/session", json={"locale": "ko-KR", "mode": "standard"})
+    session_id = create_res.json()["session_id"]
+
+    message_res = client.post(
+        f"/api/chat/session/{session_id}/message",
+        json={"message": "아이폰"},
+    )
+
+    assert message_res.status_code == 200
+    payload = message_res.json()
+    assert payload["brief_slots"]["product"]["name"] == "아이폰"
+    assert "아이폰" in payload["assistant_message"]
+    assert "제품 카테고리는 무엇인가요?" in payload["assistant_message"]

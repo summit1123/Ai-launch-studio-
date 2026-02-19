@@ -52,6 +52,27 @@ class ChatOrchestrator:
         "channel.channels": "우선 집중할 채널 1~2개를 알려주세요. (예: 인스타, 네이버)",
         "goal.weekly_goal": "이번 주 목표를 선택해주세요. (조회/문의/구매)",
     }
+    SLOT_LABEL_BY_PATH = {
+        "product.name": "제품명",
+        "product.category": "카테고리",
+        "product.features": "핵심 특징",
+        "product.price_band": "가격대",
+        "target.who": "타겟 고객",
+        "target.why": "구매 이유",
+        "channel.channels": "집중 채널",
+        "goal.weekly_goal": "주간 목표",
+        "goal.video_seconds": "영상 길이",
+    }
+    HINT_BY_PATH = {
+        "product.name": "예: 아이폰 17, 글로우세럼X",
+        "product.category": "예: 스마트폰, 스킨케어",
+        "product.features": "예: 저자극, 빠른 흡수, 비건 포뮬러",
+        "product.price_band": "예: 중가 또는 39,000원",
+        "target.who": "예: 20대 직장인, 30대 남성",
+        "target.why": "예: 촉촉함 유지, 트러블 진정",
+        "channel.channels": "예: 인스타, 네이버",
+        "goal.weekly_goal": "예: 문의",
+    }
     SUPPORTED_VIDEO_SECONDS = (5, 10, 15, 20)
 
     @staticmethod
@@ -72,16 +93,13 @@ class ChatOrchestrator:
 
         gate = self.evaluate_gate(working_slots)
         if gate.ready:
-            assistant_message = (
-                "좋아요. 브리프 수집이 완료됐어요. "
-                "이제 시장 리서치와 전략 생성을 진행할 수 있습니다."
-            )
+            assistant_message = self._compose_ready_message(slot_updates)
             state: ChatState = "BRIEF_READY"
         else:
             next_path = gate.missing_required[0]
-            assistant_message = self.QUESTION_BY_PATH.get(
-                next_path,
-                "좋아요. 부족한 정보를 한 가지씩 채워볼게요.",
+            assistant_message = self._compose_followup_message(
+                slot_updates=slot_updates,
+                next_path=next_path,
             )
             state = "CHAT_COLLECTING"
 
@@ -95,6 +113,62 @@ class ChatOrchestrator:
             gate=gate,
             assistant_message=assistant_message,
         )
+
+    def _compose_ready_message(self, slot_updates: list[SlotUpdate]) -> str:
+        summary = self._summarize_updates(slot_updates)
+        if summary:
+            return (
+                f"좋아요, {summary} 확인했어요. "
+                "브리프 수집이 완료됐고 이제 시장 리서치와 전략 생성을 진행할 수 있어요."
+            )
+        return (
+            "좋아요. 브리프 수집이 완료됐어요. "
+            "이제 시장 리서치와 전략 생성을 진행할 수 있습니다."
+        )
+
+    def _compose_followup_message(
+        self,
+        *,
+        slot_updates: list[SlotUpdate],
+        next_path: str,
+    ) -> str:
+        question = self.QUESTION_BY_PATH.get(
+            next_path,
+            "좋아요. 부족한 정보를 한 가지씩 채워볼게요.",
+        )
+        summary = self._summarize_updates(slot_updates)
+        if summary:
+            return f"좋아요, {summary} 확인했어요. {question}"
+
+        label = self.SLOT_LABEL_BY_PATH.get(next_path, "필수")
+        hint = self.HINT_BY_PATH.get(next_path)
+        if hint:
+            return f"아직 {label} 정보가 부족해요. {question} ({hint})"
+        return f"아직 {label} 정보가 부족해요. {question}"
+
+    def _summarize_updates(self, updates: list[SlotUpdate]) -> str:
+        if not updates:
+            return ""
+
+        chunks: list[str] = []
+        for update in updates:
+            label = self.SLOT_LABEL_BY_PATH.get(update.path)
+            if not label:
+                continue
+            value = self._format_update_value(update.value)
+            if not value:
+                continue
+            chunks.append(f"{label}은 '{value}'")
+            if len(chunks) >= 2:
+                break
+        return ", ".join(chunks)
+
+    @staticmethod
+    def _format_update_value(value: object) -> str:
+        if isinstance(value, list):
+            items = [str(item).strip() for item in value if str(item).strip()]
+            return ", ".join(items[:3])
+        return str(value).strip()
 
     def evaluate_gate(self, slots: BriefSlots) -> GateStatus:
         missing: list[str] = []
@@ -122,6 +196,7 @@ class ChatOrchestrator:
         updates: list[SlotUpdate] = []
         notices: list[str] = []
         lowered = message.lower()
+        expected_path = self._first_missing_path(slots)
 
         if not slots.product.name:
             name_match = re.search(
@@ -157,6 +232,11 @@ class ChatOrchestrator:
 
         if len(slots.product.features) < 3:
             extracted_features = self._extract_features(message=message)
+            if not extracted_features and expected_path == "product.features":
+                extracted_features = self._extract_features(
+                    message=message,
+                    require_keyword=False,
+                )
             if extracted_features:
                 merged = self._merge_unique(slots.product.features, extracted_features, limit=6)
                 if merged != slots.product.features:
@@ -225,12 +305,25 @@ class ChatOrchestrator:
                     )
                 )
 
+        if expected_path and expected_path not in {update.path for update in updates}:
+            fallback_update = self._infer_update_for_expected_path(
+                message=message,
+                lowered=lowered,
+                expected_path=expected_path,
+            )
+            if fallback_update is not None:
+                updates.append(fallback_update)
+
         return updates, notices
 
     @staticmethod
-    def _extract_features(*, message: str) -> list[str]:
-        if "특징" not in message and "장점" not in message and "핵심" not in message:
+    def _extract_features(*, message: str, require_keyword: bool = True) -> list[str]:
+        if require_keyword and "특징" not in message and "장점" not in message and "핵심" not in message:
             return []
+        if not require_keyword:
+            has_delimiter = bool(re.search(r"[,/\n|;·]", message))
+            if not has_delimiter:
+                return []
 
         candidate = message
         for token in ("특징", "장점", "핵심"):
@@ -328,6 +421,44 @@ class ChatOrchestrator:
         if previous is None:
             return f"영상 길이를 {normalized}초로 설정했어요."
         return f"영상 길이를 {normalized}초로 변경했어요."
+
+    def _infer_update_for_expected_path(
+        self,
+        *,
+        message: str,
+        lowered: str,
+        expected_path: str,
+    ) -> SlotUpdate | None:
+        cleaned = self._clean_fragment(message)
+        if len(cleaned) < 2:
+            return None
+
+        if expected_path == "product.name":
+            if len(cleaned) > 40:
+                return None
+            return SlotUpdate(path="product.name", value=cleaned, confidence=0.62)
+
+        if expected_path == "product.category":
+            inferred_category = self._infer_category(lowered)
+            if inferred_category:
+                return SlotUpdate(path="product.category", value=inferred_category, confidence=0.67)
+            if len(cleaned) <= 40 and "," not in cleaned:
+                return SlotUpdate(path="product.category", value=cleaned, confidence=0.58)
+            return None
+
+        if expected_path == "target.who":
+            return SlotUpdate(path="target.who", value=cleaned, confidence=0.55)
+
+        if expected_path == "target.why":
+            return SlotUpdate(path="target.why", value=cleaned, confidence=0.55)
+
+        return None
+
+    def _first_missing_path(self, slots: BriefSlots) -> str | None:
+        gate = self.evaluate_gate(slots)
+        if not gate.missing_required:
+            return None
+        return gate.missing_required[0]
 
     @staticmethod
     def _infer_category(lowered: str) -> str | None:
