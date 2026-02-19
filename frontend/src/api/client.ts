@@ -1,29 +1,88 @@
 import type {
+  AssistantVoiceRequest,
+  AssistantVoiceResponse,
+  ChatMessageRequest,
+  ChatMessageResponse,
+  ChatSessionCreateRequest,
+  ChatSessionCreateResponse,
+  ChatSessionGetResponse,
+  RunGenerateResponse,
+  RunGetResponse,
+  StreamEvent,
+  StreamEventType,
   LaunchHistoryListResponse,
   LaunchRunRequest,
   LaunchRunResponse,
+  VoiceTurnRequest,
+  VoiceTurnResponse,
 } from "../types";
 
 const API_BASE_URL =
   import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8090/api";
 
-export async function runLaunch(
-  payload: LaunchRunRequest,
-  options?: { signal?: AbortSignal }
-): Promise<LaunchRunResponse> {
-  const response = await fetch(`${API_BASE_URL}/launch/run`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-    signal: options?.signal,
-  });
+type RequestOptions = {
+  signal?: AbortSignal;
+};
 
-  if (!response.ok) {
-    const message = await response.text();
-    throw new Error(message || `Launch API failed: ${response.status}`);
+function resolveApiUrl(path: string): string {
+  return `${API_BASE_URL}${path}`;
+}
+
+async function readErrorMessage(response: Response): Promise<string> {
+  const fallback = `API failed: ${response.status}`;
+  const body = await response.text();
+  if (!body.trim()) {
+    return fallback;
   }
 
-  return (await response.json()) as LaunchRunResponse;
+  try {
+    const parsed = JSON.parse(body) as {
+      detail?: unknown;
+      error?: { message?: string };
+    };
+    if (parsed.error?.message) {
+      return parsed.error.message;
+    }
+    if (typeof parsed.detail === "string") {
+      return parsed.detail;
+    }
+    if (parsed.detail !== undefined) {
+      return JSON.stringify(parsed.detail);
+    }
+  } catch {
+    // keep plain text fallback
+  }
+
+  return body || fallback;
+}
+
+async function requestJson<T>(
+  path: string,
+  init: RequestInit,
+  errorPrefix: string
+): Promise<T> {
+  const response = await fetch(resolveApiUrl(path), init);
+  if (!response.ok) {
+    const message = await readErrorMessage(response);
+    throw new Error(message || `${errorPrefix}: ${response.status}`);
+  }
+  return (await response.json()) as T;
+}
+
+export async function runLaunch(
+  payload: LaunchRunRequest,
+  options?: RequestOptions
+): Promise<LaunchRunResponse> {
+  return requestJson<LaunchRunResponse>(
+    "/launch/run",
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+      signal: options?.signal,
+    },
+    "Launch API failed"
+  );
 }
 
 export async function listLaunchHistory(
@@ -36,29 +95,255 @@ export async function listLaunchHistory(
     offset: String(offset),
     q: query,
   });
-  const response = await fetch(`${API_BASE_URL}/launch/history?${params.toString()}`);
-  if (!response.ok) {
-    const message = await response.text();
-    throw new Error(message || `History API failed: ${response.status}`);
-  }
-  return (await response.json()) as LaunchHistoryListResponse;
+  return requestJson<LaunchHistoryListResponse>(
+    `/launch/history?${params.toString()}`,
+    { method: "GET" },
+    "History API failed"
+  );
 }
 
 export async function getLaunchHistory(requestId: string): Promise<LaunchRunResponse> {
-  const response = await fetch(`${API_BASE_URL}/launch/history/${requestId}`);
-  if (!response.ok) {
-    const message = await response.text();
-    throw new Error(message || `History detail API failed: ${response.status}`);
-  }
-  return (await response.json()) as LaunchRunResponse;
+  return requestJson<LaunchRunResponse>(
+    `/launch/history/${requestId}`,
+    { method: "GET" },
+    "History detail API failed"
+  );
 }
 
 export async function deleteLaunchHistory(requestId: string): Promise<void> {
-  const response = await fetch(`${API_BASE_URL}/launch/history/${requestId}`, {
+  const response = await fetch(resolveApiUrl(`/launch/history/${requestId}`), {
     method: "DELETE",
   });
   if (!response.ok) {
-    const message = await response.text();
+    const message = await readErrorMessage(response);
     throw new Error(message || `History delete API failed: ${response.status}`);
   }
+}
+
+export async function createChatSession(
+  payload: ChatSessionCreateRequest = {}
+): Promise<ChatSessionCreateResponse> {
+  return requestJson<ChatSessionCreateResponse>(
+    "/chat/session",
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        locale: payload.locale ?? "ko-KR",
+        mode: payload.mode ?? "standard",
+      }),
+    },
+    "Create chat session API failed"
+  );
+}
+
+export async function getChatSession(sessionId: string): Promise<ChatSessionGetResponse> {
+  return requestJson<ChatSessionGetResponse>(
+    `/chat/session/${sessionId}`,
+    { method: "GET" },
+    "Get chat session API failed"
+  );
+}
+
+export async function postChatMessage(
+  sessionId: string,
+  payload: ChatMessageRequest,
+  options?: RequestOptions
+): Promise<ChatMessageResponse> {
+  return requestJson<ChatMessageResponse>(
+    `/chat/session/${sessionId}/message`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+      signal: options?.signal,
+    },
+    "Chat message API failed"
+  );
+}
+
+function parseSseBlock(block: string): StreamEvent | null {
+  if (!block.trim()) {
+    return null;
+  }
+
+  let eventType = "message";
+  const dataLines: string[] = [];
+  for (const line of block.split("\n")) {
+    if (line.startsWith("event:")) {
+      eventType = line.slice("event:".length).trim();
+      continue;
+    }
+    if (line.startsWith("data:")) {
+      dataLines.push(line.slice("data:".length).trimStart());
+    }
+  }
+
+  if (dataLines.length === 0) {
+    return null;
+  }
+
+  const rawData = dataLines.join("\n");
+  let data: unknown = rawData;
+  try {
+    data = JSON.parse(rawData);
+  } catch {
+    // keep text payload as-is
+  }
+
+  return {
+    type: eventType as StreamEventType,
+    data,
+  };
+}
+
+async function streamPost(
+  path: string,
+  init: RequestInit,
+  onEvent: (event: StreamEvent) => void
+): Promise<void> {
+  const response = await fetch(resolveApiUrl(path), init);
+  if (!response.ok) {
+    const message = await readErrorMessage(response);
+    throw new Error(message || `Stream API failed: ${response.status}`);
+  }
+
+  if (!response.body) {
+    throw new Error("Stream response body is missing");
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) {
+      break;
+    }
+    buffer += decoder.decode(value, { stream: true });
+    while (true) {
+      const boundary = buffer.indexOf("\n\n");
+      if (boundary < 0) {
+        break;
+      }
+      const rawBlock = buffer.slice(0, boundary);
+      buffer = buffer.slice(boundary + 2);
+      const event = parseSseBlock(rawBlock);
+      if (event) {
+        onEvent(event);
+      }
+    }
+  }
+
+  buffer += decoder.decode();
+  const tailEvent = parseSseBlock(buffer);
+  if (tailEvent) {
+    onEvent(tailEvent);
+  }
+}
+
+export async function streamChatMessage(
+  sessionId: string,
+  payload: ChatMessageRequest,
+  onEvent: (event: StreamEvent) => void,
+  options?: RequestOptions
+): Promise<void> {
+  return streamPost(
+    `/chat/session/${sessionId}/message/stream`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+      signal: options?.signal,
+    },
+    onEvent
+  );
+}
+
+function buildVoiceTurnFormData(payload: VoiceTurnRequest): FormData {
+  const formData = new FormData();
+  const filename =
+    payload.filename ?? (payload.audio instanceof File ? payload.audio.name : "voice.wav");
+
+  formData.append("audio", payload.audio, filename);
+  formData.append("locale", payload.locale ?? "ko-KR");
+  formData.append("voice_preset", payload.voice_preset ?? "friendly_ko");
+  return formData;
+}
+
+export async function postVoiceTurn(
+  sessionId: string,
+  payload: VoiceTurnRequest,
+  options?: RequestOptions
+): Promise<VoiceTurnResponse> {
+  return requestJson<VoiceTurnResponse>(
+    `/chat/session/${sessionId}/voice-turn`,
+    {
+      method: "POST",
+      body: buildVoiceTurnFormData(payload),
+      signal: options?.signal,
+    },
+    "Voice turn API failed"
+  );
+}
+
+export async function streamVoiceTurn(
+  sessionId: string,
+  payload: VoiceTurnRequest,
+  onEvent: (event: StreamEvent) => void,
+  options?: RequestOptions
+): Promise<void> {
+  return streamPost(
+    `/chat/session/${sessionId}/voice-turn/stream`,
+    {
+      method: "POST",
+      body: buildVoiceTurnFormData(payload),
+      signal: options?.signal,
+    },
+    onEvent
+  );
+}
+
+export async function createAssistantVoice(
+  sessionId: string,
+  payload: AssistantVoiceRequest,
+  options?: RequestOptions
+): Promise<AssistantVoiceResponse> {
+  return requestJson<AssistantVoiceResponse>(
+    `/chat/session/${sessionId}/assistant-voice`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        text: payload.text,
+        voice_preset: payload.voice_preset ?? "friendly_ko",
+        format: payload.format ?? "mp3",
+      }),
+      signal: options?.signal,
+    },
+    "Assistant voice API failed"
+  );
+}
+
+export async function generateRun(
+  sessionId: string,
+  options?: RequestOptions
+): Promise<RunGenerateResponse> {
+  return requestJson<RunGenerateResponse>(
+    `/runs/${sessionId}/generate`,
+    {
+      method: "POST",
+      signal: options?.signal,
+    },
+    "Run generate API failed"
+  );
+}
+
+export async function getRun(runId: string): Promise<RunGetResponse> {
+  return requestJson<RunGetResponse>(
+    `/runs/${runId}`,
+    { method: "GET" },
+    "Run get API failed"
+  );
 }

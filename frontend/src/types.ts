@@ -75,3 +75,150 @@ export type LaunchHistoryListResponse = {
   has_more: boolean;
   query: string;
 };
+
+export type ChatState =
+  | "CHAT_COLLECTING"
+  | "BRIEF_READY"
+  | "RUN_RESEARCH"
+  | "GEN_STRATEGY"
+  | "GEN_CREATIVES"
+  | "DONE"
+  | "FAILED";
+
+export type ProductSlots = {
+  name: string | null;
+  category: string | null;
+  features: string[];
+  price_band: string | null;
+};
+
+export type TargetSlots = {
+  who: string | null;
+  why: string | null;
+};
+
+export type ChannelSlots = {
+  channels: string[];
+};
+
+export type GoalSlots = {
+  weekly_goal: "reach" | "inquiry" | "purchase" | null;
+};
+
+export type BriefSlots = {
+  product: ProductSlots;
+  target: TargetSlots;
+  channel: ChannelSlots;
+  goal: GoalSlots;
+};
+
+export type SlotUpdate = {
+  path: string;
+  value: unknown;
+  confidence: number;
+};
+
+export type GateStatus = {
+  ready: boolean;
+  missing_required: string[];
+  completeness: number;
+};
+
+export type ChatSessionCreateRequest = {
+  locale?: string;
+  mode?: "fast" | "standard";
+};
+
+export type ChatSessionCreateResponse = {
+  session_id: string;
+  state: ChatState;
+  mode: "fast" | "standard";
+  locale: string;
+  brief_slots: BriefSlots;
+  gate: GateStatus;
+  assistant_message: string;
+};
+
+export type ChatSessionGetResponse = {
+  session_id: string;
+  state: ChatState;
+  mode: "fast" | "standard";
+  locale: string;
+  brief_slots: BriefSlots;
+  gate: GateStatus;
+  created_at: string;
+  updated_at: string;
+};
+
+export type ChatMessageRequest = {
+  message: string;
+};
+
+export type ChatMessageResponse = {
+  session_id: string;
+  state: ChatState;
+  assistant_message: string;
+  slot_updates: SlotUpdate[];
+  brief_slots: BriefSlots;
+  gate: GateStatus;
+};
+
+export type VoiceTurnResponse = {
+  session_id: string;
+  transcript: string;
+  state: ChatState;
+  next_question: string;
+  slot_updates: SlotUpdate[];
+  brief_slots: BriefSlots;
+  gate: GateStatus;
+};
+
+export type VoiceTurnRequest = {
+  audio: Blob | File;
+  filename?: string;
+  locale?: string;
+  voice_preset?: "friendly_ko" | "calm_ko" | "neutral_ko";
+};
+
+export type AssistantVoiceRequest = {
+  text: string;
+  voice_preset?: "friendly_ko" | "calm_ko" | "neutral_ko";
+  format?: "mp3" | "wav";
+};
+
+export type AssistantVoiceResponse = {
+  audio_url: string;
+  format: "mp3" | "wav";
+  bytes_size: number;
+};
+
+export type RunGenerateResponse = {
+  run_id: string;
+  session_id: string;
+  state: ChatState;
+};
+
+export type RunGetResponse = {
+  run_id: string;
+  session_id: string;
+  state: ChatState;
+  package: LaunchPackage;
+};
+
+export type StreamEventType =
+  | "planner.delta"
+  | "slot.updated"
+  | "gate.ready"
+  | "stage.changed"
+  | "research.delta"
+  | "strategy.delta"
+  | "creative.delta"
+  | "voice.delta"
+  | "asset.ready"
+  | "run.completed"
+  | "error";
+
+export type StreamEvent = {
+  type: StreamEventType | string;
+  data: unknown;
+};
