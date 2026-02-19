@@ -1,0 +1,14 @@
+
+> ai-launch-studio-frontend@0.1.0 dev
+> vite
+
+
+  [32m[1mVITE[22m v5.4.21[39m  [2mready in [0m[1m946[22m[2m[0m ms[22m
+
+  [32m➜[39m  [1mLocal[22m:   [36mhttp://localhost:[1m5050[22m/[39m
+  [32m➜[39m  [1mNetwork[22m: [36mhttp://172.20.20.57:[1m5050[22m/[39m
+  [32m➜[39m  [1mNetwork[22m: [36mhttp://172.28.208.1:[1m5050[22m/[39m
+[2m[32m  ➜[39m[22m[2m  press [22m[1mh + enter[22m[2m to show help[22m
+[2m오전 10:50:53[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/App.tsx, /src/pages/LaunchForm.tsx[22m
+[2m오전 10:51:00[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/pages/LaunchForm.tsx[22m
+[2m오전 10:51:09[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/pages/LaunchForm.tsx[22m

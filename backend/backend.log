@@ -1,0 +1,18 @@
+INFO:     Will watch for changes in these directories: ['/home/wips/works/AI/ai-launch-studio/backend']
+INFO:     Uvicorn running on http://0.0.0.0:8090 (Press CTRL+C to quit)
+INFO:     Started reloader process [13985] using WatchFiles
+INFO:     Started server process [14001]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     127.0.0.1:55986 - "GET /static/assets/studio_intro.mp4 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:33422 - "GET /static/assets/studio_intro.mp4 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:56376 - "GET /static/assets/studio_intro.mp4 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:49502 - "GET /static/assets/studio_intro.mp4 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:52658 - "GET /static/assets/studio_intro.mp4 HTTP/1.1" 206 Partial Content
+INFO:     127.0.0.1:53208 - "GET /static/assets/studio_intro.mp4 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:41328 - "GET /static/assets/studio_intro.mp4 HTTP/1.1" 304 Not Modified
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [14001]
+INFO:     Stopping reloader process [13985]
