@@ -17,6 +17,7 @@ import {
   type MessageStreamItem,
 } from "../components/MessageStream";
 import { VoiceInputButton } from "../components/VoiceInputButton";
+import { VoicePlaybackToggle } from "../components/VoicePlaybackToggle";
 import { LaunchResult } from "./LaunchResult";
 import type {
   BriefSlots,
@@ -117,6 +118,11 @@ export function ChatWorkspace() {
   const [error, setError] = useState<string | null>(null);
   const [launchPackage, setLaunchPackage] = useState<LaunchPackage | null>(null);
   const [runId, setRunId] = useState<string | null>(null);
+  const latestAssistantText =
+    [...messages]
+      .reverse()
+      .find((line) => line.role === "assistant" && line.text.trim().length > 0)
+      ?.text ?? "";
 
   useEffect(() => {
     let cancelled = false;
@@ -410,6 +416,13 @@ export function ChatWorkspace() {
             disabled={loadingSession || sending}
             loading={voiceSending}
             onSubmit={handleVoiceSubmit}
+          />
+        </div>
+        <div style={{ marginTop: "8px" }}>
+          <VoicePlaybackToggle
+            sessionId={sessionId}
+            text={latestAssistantText}
+            disabled={loadingSession || sending || voiceSending}
           />
         </div>
       </section>
