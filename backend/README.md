@@ -1,46 +1,28 @@
-# AI Launch Studio Backend
+# 백엔드
 
-## Run
-
+## 실행 (uv)
 ```bash
-cd /Users/a311/Documents/GitHub/AI/ai-launch-studio/backend
-python -m venv .venv
+cd /Users/gimdonghyeon/Downloads/ai-launch-studio/backend
+uv venv
 source .venv/bin/activate
-pip install -r requirements.txt
+uv pip install -r requirements.txt
 cp .env.example .env
-uvicorn app.main:app --reload --port 8000
+uv run uvicorn app.main:app --reload --port 8000
 ```
 
-## API
-
+## 주요 엔드포인트
 - `GET /health`
 - `POST /api/launch/run`
-- `GET /api/launch/history?limit=20&offset=0&q=keyword`
+- `GET /api/launch/history?limit=20&offset=0&q=`
 - `GET /api/launch/history/{request_id}`
 - `DELETE /api/launch/history/{request_id}`
 
-`/api/launch/run`는 에이전트별 전용 구조화 필드를 포함합니다.
-- `research_summary.market_signals`
-- `launch_plan.milestones`
-- `campaign_strategy.channel_tactics`
-- `budget_and_kpi.budget_split_krw`
-- `marketing_assets.video_scene_plan`
+## 참고
+- 미디어 생성은 `OPENAI_API_KEY`가 필요합니다.
+- 생성 파일은 `/static/assets`로 서빙됩니다.
+- SQLite 경로는 `DB_PATH`로 설정합니다.
 
-Example body:
-
-```json
-{
-  "brief": {
-    "product_name": "Glow Serum X",
-    "product_category": "Skincare",
-    "target_audience": "20-34 뷰티 얼리어답터",
-    "price_band": "mid-premium",
-    "total_budget_krw": 120000000,
-    "launch_date": "2026-04-01",
-    "core_kpi": "런칭 후 4주 내 재구매율 25%",
-    "region": "KR",
-    "channel_focus": ["Instagram", "YouTube", "Naver SmartStore"]
-  },
-  "mode": "standard"
-}
-```
+세부 명세:
+- `/Users/gimdonghyeon/Downloads/ai-launch-studio/docs/api.md`
+- `/Users/gimdonghyeon/Downloads/ai-launch-studio/docs/db_schema.md`
+- `/Users/gimdonghyeon/Downloads/ai-launch-studio/docs/backend_architecture.md`

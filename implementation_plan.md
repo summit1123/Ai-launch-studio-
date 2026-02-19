@@ -1,138 +1,66 @@
-# AI Launch Studio Implementation Plan
+# AI Launch Studio 구현 계획 (MVP)
 
 ## 1. 구현 전략
-- 목표: 공모전 데모 중심 MVP를 빠르게 완성
-- 원칙: 작동 우선, 추적 가능성 우선, 제출물 직결 산출물 우선
-- 기술 방향: OpenAI Agent SDK + FastAPI + React
+대화형 코파일럿을 빠르게 만들되, 범위를 엄격히 고정하고 스트리밍 경험을 우선한다.
 
-## 2. 범위 정의
+## 2. 범위
 
-### In Scope (MVP)
-- 메인 오케스트레이터 1개 + 코어 에이전트 6개 + 서브 에이전트 3개
-- 브리프 입력 -> 병렬 분석 -> 합성 -> 최종 패키지 출력 파이프라인
-- 결과 대시보드 및 데모 요약 화면
+### 포함 (In Scope)
+- 플래너 대화 + 조건부 질문
+- 브리프 게이트 검사
+- 전략 생성
+- 크리에이티브 생성(카피/포스터/영상 프롬프트)
+- 보이스 에이전트 출력 및 TTS 합성 경로
+- 실행 이력 저장/조회
 
-### Out of Scope (MVP 이후)
-- 외부 광고 집행 API 연동
-- 장기 사용자 계정/권한 고도화
-- 자동 배포 완전 자동화
+### 제외 (Out of Scope)
+- 광고 집행 자동화
+- 재고/매출 시스템 연동
+- 고급 금융/BI 대시보드
 
-## 3. 목표 폴더 구조
+## 3. 단계별 실행
 
-```text
-ai-launch-studio/
-  backend/
-    app/
-      agents/
-        orchestrator.py
-        research_agent.py
-        md_agent.py
-        planner_agent.py
-        marketer_agent.py
-        dev_agent.py
-        biz_planning_agent.py
-        video_producer_agent.py
-        poster_agent.py
-        product_copy_agent.py
-      schemas/
-        launch_package.py
-      routers/
-        launch.py
-      services/
-        agent_runtime.py
-      main.py
-    requirements.txt
-  frontend/
-    src/
-      pages/
-        Dashboard.tsx
-        LaunchForm.tsx
-        LaunchResult.tsx
-      components/
-        AgentTimeline.tsx
-        AssetPreview.tsx
-      api/
-        client.ts
-  PRD.md
-  implementation_plan.md
-```
+### Phase 0: 명세 고정
+- PRD/MVP/API/DB/오케스트레이터/오픈AI 문서 확정
 
-## 4. 실행 단계
+### Phase 1: 백엔드 계약
+- 채팅 세션 API 및 스트리밍 이벤트 추가
+- 브리프 게이트 서비스 구현
+- 전략/크리에이티브/보이스 스키마 검증
 
-### Phase 1: 프로젝트 골격
-- 백엔드/프론트엔드 초기화
-- 공통 환경변수/실행 스크립트 정리
-- Launch Package 스키마 초안 정의
+### Phase 2: 오케스트레이터 고도화
+- 상태 머신 기반 라우팅
+- 단계별 이벤트 송출
+- 세션/실행 결과 영속화
 
-### Phase 2: 오케스트레이션 코어
-- Agent SDK 기반 오케스트레이터 구현
-- Research/MD/Dev 1차 병렬 호출 구현
-- Planner/Marketer/Biz Planning 2차 합성 구현
+### Phase 3: 프론트 전환
+- 템플릿 폼 중심 UX -> 대화 중심 UX
+- 슬롯 채움 상태 및 게이트 진행률 표시
+- 전략/소재/보이스 탭 UI 구성
 
-### Phase 3: 콘텐츠 에이전트
-- Video Producer/Poster/Product Copy 서브 에이전트 연결
-- 마케팅/MD 검수 루프(톤, 사실성) 추가
-- 최종 패키지 JSON 직렬화
+### Phase 4: 미디어 파이프라인
+- 영상 프롬프트 생성
+- TTS 생성
+- ffmpeg 합성(ducking/자막)
 
-### Phase 4: UI 및 시연
-- LaunchForm 입력 플로우 구현
-- AgentTimeline으로 협업 흐름 시각화
-- 결과 화면에 영상/포스터/카피 섹션 렌더링
+### Phase 5: 데모 안정화
+- 카피 안전 필터 추가
+- 톤 재생성 버튼 추가
+- 리허설 및 실패 복구 경로 점검
 
-### Phase 5: 제출물 패키징
-- 서비스 소개 1p 요약 문서 정리
-- 3~5분 시연 스크립트 고정
-- 데모 체크리스트 완료
+## 4. 2~3일 구현 순서 권장
+1. API + 상태 머신 + 스트리밍 골격
+2. 플래너 슬롯 수집 + 전략 스키마
+3. 크리에이티브/보이스 스키마 + 미디어 합성
+4. 프론트 대화 UI + export
 
-## 5. 일정 계획 (상대 일정)
+## 5. 완료 기준
+- 정상/실패 경로 모두 사용자에게 명확한 피드백 제공
+- 게이트 미통과 시 전략 생성 차단
+- 최소 1개 카피/포스터/영상-보이스 결과 반환
+- 결과 저장/재조회 가능
 
-```mermaid
-gantt
-    title AI Launch Studio MVP Plan
-    dateFormat  YYYY-MM-DD
-    section Foundation
-    Project scaffold           :a1, 2026-02-19, 1d
-    Shared schema              :a2, after a1, 1d
-    section Orchestration
-    Core orchestrator          :b1, after a2, 1d
-    Parallel + synthesis flow  :b2, after b1, 1d
-    section Content Agents
-    Video/Poster/Product copy  :c1, after b2, 1d
-    section Frontend
-    Form + result pages        :d1, after c1, 1d
-    Timeline visualization     :d2, after d1, 1d
-    section Submission
-    Demo script + dry run      :e1, after d2, 1d
-```
-
-## 6. 런타임 플로우
-
-```mermaid
-flowchart LR
-    A["Input Brief"] --> B["Orchestrator"]
-    B --> C["Parallel Analysis"]
-    C --> D["Synthesis"]
-    D --> E["Asset Generation"]
-    E --> F["Conflict Check"]
-    F --> G["Launch Package"]
-    G --> H["Dashboard + Demo Script"]
-```
-
-## 7. 검증 기준
-- API: `/launch/run` 호출 시 Launch Package 필수 필드 100% 반환
-- UI: 입력->결과까지 끊김 없는 단일 데모 플로우 완주
-- 시연: 3회 연속 데모에서 치명 에러 0건
-- 요건: 공모전 3개 필수 조건 체크리스트 완료
-
-## 8. 리스크 및 대응
-- 모델 응답 구조 불안정 -> 구조화된 출력 스키마 강제 + fallback parser
-- 에이전트 간 출력 충돌 -> 오케스트레이터 재조정 라운드 1회 고정
-- 데모 시간 초과 -> 자산 생성 모드(빠른 요약/상세 생성) 분리
-
-## 9. 즉시 실행 TODO
-- [ ] `backend` 초기화 및 Agent SDK 런타임 연결
-- [ ] 에이전트 인터페이스(입력/출력 타입) 공통화
-- [ ] `frontend` 폼/결과 페이지 뼈대 구현
-- [ ] 데모 스크립트 초안 작성
-- [ ] 시연 리허설 체크리스트 작성
-
+## 6. 리스크 및 대응
+- 영상 생성 지연: 백그라운드 처리 + 진행률 표시
+- 출력 편차: 구조화 출력 + 재시도
+- 음성 품질 저하: 고정 보이스 프로필 + loudness 정규화
