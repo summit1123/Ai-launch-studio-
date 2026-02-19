@@ -2,8 +2,8 @@ import React from "react";
 import { Rocket } from "lucide-react";
 
 interface NavbarProps {
-  currentView: "home" | "dashboard";
-  onNavigate: (view: "home" | "dashboard") => void;
+  currentView: "home" | "dashboard" | "chat";
+  onNavigate: (view: "home" | "dashboard" | "chat") => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({ currentView, onNavigate }) => {
@@ -30,13 +30,18 @@ export const Navbar: React.FC<NavbarProps> = ({ currentView, onNavigate }) => {
 
         <div className="navbar-actions">
           {currentView === "home" ? (
-            <button className="btn-primary-sm" onClick={() => onNavigate("dashboard")}>
+            <button className="btn-primary-sm" onClick={() => onNavigate("chat")}>
               Launch Studio
             </button>
           ) : (
-            <button className="btn-secondary-sm" onClick={() => onNavigate("home")}>
-              Back to Home
-            </button>
+            <div style={{ display: "flex", gap: "8px" }}>
+              <button className="btn-secondary-sm" onClick={() => onNavigate("dashboard")}>
+                Legacy Dashboard
+              </button>
+              <button className="btn-secondary-sm" onClick={() => onNavigate("home")}>
+                Back to Home
+              </button>
+            </div>
           )}
         </div>
       </div>
