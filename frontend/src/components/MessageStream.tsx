@@ -1,3 +1,5 @@
+import { useEffect, useRef } from "react";
+
 export type MessageStreamItem = {
   id: string;
   role: "assistant" | "user" | "system";
@@ -9,14 +11,30 @@ type MessageStreamProps = {
 };
 
 export function MessageStream({ items }: MessageStreamProps) {
+  const containerRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    const node = containerRef.current;
+    if (!node) {
+      return;
+    }
+    node.scrollTop = node.scrollHeight;
+  }, [items]);
+
   return (
     <div
+      ref={containerRef}
       style={{
         display: "grid",
-        gap: "10px",
-        maxHeight: "380px",
+        gap: "12px",
+        maxHeight: "420px",
+        minHeight: "280px",
         overflowY: "auto",
-        padding: "6px",
+        padding: "14px",
+        borderRadius: "14px",
+        border: "1px solid var(--surface-border)",
+        background:
+          "linear-gradient(180deg, rgba(11, 28, 56, 0.74) 0%, rgba(7, 20, 42, 0.72) 100%)",
       }}
     >
       {items.map((line) => (
@@ -24,22 +42,26 @@ export function MessageStream({ items }: MessageStreamProps) {
           key={line.id}
           style={{
             justifySelf: line.role === "user" ? "end" : "start",
-            maxWidth: "88%",
-            padding: "10px 14px",
-            borderRadius: "12px",
+            maxWidth: "78%",
+            padding: "10px 12px",
+            borderRadius: "14px",
             border:
               line.role === "system"
                 ? "1px solid rgba(239, 68, 68, 0.35)"
-                : "1px solid rgba(255, 255, 255, 0.12)",
+                : "1px solid var(--surface-border)",
             background:
               line.role === "user"
-                ? "rgba(56, 189, 248, 0.18)"
+                ? "linear-gradient(145deg, rgba(34, 211, 238, 0.3), rgba(245, 158, 11, 0.2))"
                 : line.role === "system"
                   ? "rgba(239, 68, 68, 0.12)"
-                  : "rgba(15, 23, 42, 0.7)",
+                  : "var(--surface-strong)",
             whiteSpace: "pre-wrap",
+            boxShadow: "0 8px 24px rgba(2, 6, 23, 0.25)",
           }}
         >
+          <div style={{ fontSize: "0.72rem", color: "var(--muted)", marginBottom: "4px" }}>
+            {line.role === "assistant" ? "AI 플래너" : line.role === "user" ? "나" : "시스템"}
+          </div>
           {line.text}
         </div>
       ))}

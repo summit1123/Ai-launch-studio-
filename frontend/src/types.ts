@@ -214,6 +214,30 @@ export type RunGetResponse = {
   package: LaunchPackage;
 };
 
+export type MediaAssetItem = {
+  asset_id: string;
+  run_id: string;
+  asset_type: string;
+  local_path: string | null;
+  remote_url: string | null;
+  metadata: Record<string, unknown>;
+  created_at: string;
+};
+
+export type RunAssetsGetResponse = {
+  run_id: string;
+  poster_image_url: string | null;
+  video_url: string | null;
+  items: MediaAssetItem[];
+};
+
+export type RunAssetsGenerateAsyncResponse = {
+  job_id: string;
+  run_id: string;
+  session_id: string;
+  status: JobStatus;
+};
+
 export type JobGetResponse = {
   job_id: string;
   type: string;

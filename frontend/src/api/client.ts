@@ -8,6 +8,8 @@ import type {
   ChatSessionGetResponse,
   JobGetResponse,
   JobListResponse,
+  RunAssetsGenerateAsyncResponse,
+  RunAssetsGetResponse,
   RunGenerateResponse,
   RunGenerateAsyncResponse,
   RunGetResponse,
@@ -362,6 +364,28 @@ export async function getRun(runId: string): Promise<RunGetResponse> {
     `/runs/${runId}`,
     { method: "GET" },
     "Run get API failed"
+  );
+}
+
+export async function generateRunAssetsAsync(
+  runId: string,
+  options?: RequestOptions
+): Promise<RunAssetsGenerateAsyncResponse> {
+  return requestJson<RunAssetsGenerateAsyncResponse>(
+    `/runs/${runId}/assets/generate/async`,
+    {
+      method: "POST",
+      signal: options?.signal,
+    },
+    "Run assets async generate API failed"
+  );
+}
+
+export async function getRunAssets(runId: string): Promise<RunAssetsGetResponse> {
+  return requestJson<RunAssetsGetResponse>(
+    `/runs/${runId}/assets`,
+    { method: "GET" },
+    "Run assets get API failed"
   );
 }
 

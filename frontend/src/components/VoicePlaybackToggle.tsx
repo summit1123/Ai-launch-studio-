@@ -42,6 +42,13 @@ export function VoicePlaybackToggle({
     };
   }, []);
 
+  useEffect(() => {
+    stopPlayback();
+    setAudioUrl(null);
+    setError(null);
+    // text/session이 바뀌면 이전 질문 음성을 버린다.
+  }, [sessionId, text]);
+
   const stopPlayback = () => {
     const audio = audioRef.current;
     if (!audio) {
@@ -53,10 +60,12 @@ export function VoicePlaybackToggle({
   };
 
   const startPlayback = async (url: string) => {
-    if (!audioRef.current || audioRef.current.src !== url) {
-      audioRef.current = new Audio(url);
-      audioRef.current.onended = () => setPlaying(false);
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current = null;
     }
+    audioRef.current = new Audio(url);
+    audioRef.current.onended = () => setPlaying(false);
     await audioRef.current.play();
     setPlaying(true);
   };

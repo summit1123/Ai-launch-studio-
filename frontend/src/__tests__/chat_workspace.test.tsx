@@ -1,5 +1,5 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import * as client from "../api/client";
 import { ChatWorkspace } from "../pages/ChatWorkspace";
@@ -29,8 +29,11 @@ vi.mock("../api/client", () => ({
   getChatSession: vi.fn(),
   postChatMessage: vi.fn(),
   streamChatMessage: vi.fn(),
+  streamVoiceTurn: vi.fn(),
+  generateRunAssetsAsync: vi.fn(),
   generateRunAsync: vi.fn(),
   getJob: vi.fn(),
+  getRunAssets: vi.fn(),
   generateRun: vi.fn(),
   getRun: vi.fn(),
   postVoiceTurn: vi.fn(),
@@ -39,9 +42,14 @@ vi.mock("../api/client", () => ({
 
 const createChatSession = vi.mocked(client.createChatSession);
 const getChatSession = vi.mocked(client.getChatSession);
+const postChatMessage = vi.mocked(client.postChatMessage);
 const streamChatMessage = vi.mocked(client.streamChatMessage);
 
 describe("ChatWorkspace text flow", () => {
+  afterEach(() => {
+    cleanup();
+  });
+
   beforeEach(() => {
     vi.clearAllMocks();
 
@@ -125,5 +133,62 @@ describe("ChatWorkspace text flow", () => {
 
     expect(screen.getByText("좋아요. 카테고리도 알려주세요.")).toBeTruthy();
     expect(screen.getByText("게이트 진행률: 13% · 정보 수집 필요")).toBeTruthy();
+  });
+
+  it("스트림 slot.updated를 즉시 반영하고 스냅샷 실패 시 재전송하지 않는다", async () => {
+    getChatSession.mockRejectedValueOnce(new Error("snapshot sync failed"));
+    streamChatMessage.mockImplementationOnce(
+      async (
+        _sessionId: string,
+        _payload: { message: string },
+        onEvent: (event: { type: string; data: unknown }) => void
+      ) => {
+        onEvent({
+          type: "slot.updated",
+          data: {
+            slot_updates: [
+              {
+                path: "product.name",
+                value: "즉시 반영 세럼",
+                confidence: 0.94,
+              },
+            ],
+          },
+        });
+        onEvent({
+          type: "planner.delta",
+          data: { text: "카테고리도 알려주세요." },
+        });
+        onEvent({
+          type: "run.completed",
+          data: {
+            state: "CHAT_COLLECTING",
+            gate: {
+              ready: false,
+              missing_required: ["product.category"],
+              completeness: 0.125,
+            },
+          },
+        });
+      }
+    );
+
+    render(<ChatWorkspace />);
+    await screen.findByText("제품명(상품명)을 알려주세요.");
+
+    const textarea = screen.getByPlaceholderText(
+      "제품명, 카테고리, 특징, 가격대, 타겟, 채널, 목표를 자유롭게 입력하세요."
+    );
+    fireEvent.change(textarea, { target: { value: "제품명은 즉시 반영 세럼입니다." } });
+    fireEvent.click(screen.getByRole("button", { name: "메시지 보내기" }));
+
+    await waitFor(() => {
+      expect(streamChatMessage).toHaveBeenCalledTimes(1);
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText("즉시 반영 세럼")).toBeTruthy();
+    });
+    expect(postChatMessage).not.toHaveBeenCalled();
   });
 });

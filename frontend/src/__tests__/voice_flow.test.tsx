@@ -29,8 +29,11 @@ vi.mock("../api/client", () => ({
   getChatSession: vi.fn(),
   postChatMessage: vi.fn(),
   streamChatMessage: vi.fn(),
+  streamVoiceTurn: vi.fn(),
+  generateRunAssetsAsync: vi.fn(),
   generateRunAsync: vi.fn(),
   getJob: vi.fn(),
+  getRunAssets: vi.fn(),
   generateRun: vi.fn(),
   getRun: vi.fn(),
   postVoiceTurn: vi.fn(),
@@ -39,6 +42,8 @@ vi.mock("../api/client", () => ({
 
 const createChatSession = vi.mocked(client.createChatSession);
 const postVoiceTurn = vi.mocked(client.postVoiceTurn);
+const streamVoiceTurn = vi.mocked(client.streamVoiceTurn);
+const getChatSession = vi.mocked(client.getChatSession);
 
 describe("ChatWorkspace voice flow", () => {
   beforeEach(() => {
@@ -58,12 +63,44 @@ describe("ChatWorkspace voice flow", () => {
       assistant_message: "제품명(상품명)을 알려주세요.",
     });
 
-    postVoiceTurn.mockResolvedValue({
+    streamVoiceTurn.mockImplementation(
+      async (
+        _sessionId: string,
+        _payload: unknown,
+        onEvent: (event: { type: string; data: unknown }) => void
+      ) => {
+        onEvent({
+          type: "voice.delta",
+          data: { transcript: "제품명은 음성 세럼입니다.", state: "CHAT_COLLECTING" },
+        });
+        onEvent({
+          type: "slot.updated",
+          data: {
+            slot_updates: [
+              { path: "product.name", value: "음성 세럼", confidence: 0.9 },
+            ],
+          },
+        });
+        onEvent({
+          type: "planner.delta",
+          data: { text: "좋아요. 브리프 수집이 완료됐어요." },
+        });
+        onEvent({
+          type: "gate.ready",
+          data: { ready: true, missing_required: [], completeness: 1 },
+        });
+        onEvent({
+          type: "stage.changed",
+          data: { from: "CHAT_COLLECTING", to: "BRIEF_READY" },
+        });
+      }
+    );
+
+    getChatSession.mockResolvedValue({
       session_id: "sess_voice_1",
-      transcript: "제품명은 음성 세럼입니다.",
       state: "BRIEF_READY",
-      next_question: "좋아요. 브리프 수집이 완료됐어요.",
-      slot_updates: [],
+      mode: "standard",
+      locale: "ko-KR",
       brief_slots: {
         product: {
           name: "음성 세럼",
@@ -80,6 +117,8 @@ describe("ChatWorkspace voice flow", () => {
         missing_required: [],
         completeness: 1.0,
       },
+      created_at: "2026-02-19T00:00:00Z",
+      updated_at: "2026-02-19T00:00:01Z",
     });
   });
 
@@ -98,11 +137,12 @@ describe("ChatWorkspace voice flow", () => {
     });
 
     await waitFor(() => {
-      expect(postVoiceTurn).toHaveBeenCalledTimes(1);
+      expect(streamVoiceTurn).toHaveBeenCalledTimes(1);
     });
 
     expect(screen.getByText("제품명은 음성 세럼입니다.")).toBeTruthy();
     expect(screen.getByText("좋아요. 브리프 수집이 완료됐어요.")).toBeTruthy();
     expect(screen.getByText("게이트 진행률: 100% · 준비 완료")).toBeTruthy();
+    expect(postVoiceTurn).not.toHaveBeenCalled();
   });
 });
