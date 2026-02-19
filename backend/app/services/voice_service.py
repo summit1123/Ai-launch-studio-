@@ -79,7 +79,7 @@ class VoiceService:
             model=self._tts_model,
             voice=voice,
             input=text,
-            format=audio_format,
+            response_format=audio_format,
         )
         content = await self._read_binary_response(response)
         file_path = self._save_bytes_locally(content=content, extension=f".{audio_format}")

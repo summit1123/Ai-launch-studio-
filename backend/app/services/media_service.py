@@ -24,6 +24,7 @@ class MediaService:
     def __init__(self) -> None:
         settings = get_settings()
         self._api_key = settings.openai_api_key
+        self._image_model = settings.openai_image_model
         self._client = AsyncOpenAI(api_key=self._api_key)
         # Keep generated assets aligned with FastAPI static mount: backend/static
         self._assets_dir = Path(__file__).resolve().parents[2] / "static" / "assets"
@@ -45,9 +46,9 @@ class MediaService:
         """.strip()
 
         try:
-            logger.info("Generating poster image with gpt-image-1.5...")
+            logger.info("Generating poster image with %s...", self._image_model)
             response = await self._client.images.generate(
-                model="gpt-image-1.5",
+                model=self._image_model,
                 prompt=prompt,
                 size="1024x1024",
                 quality="auto",

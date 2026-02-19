@@ -21,6 +21,7 @@ class Settings(BaseSettings):
 
     openai_api_key: str | None = None
     openai_model: str = "gpt-5.2"
+    openai_image_model: str = "gpt-image-1.5"
     openai_stt_model: str = "gpt-4o-transcribe"
     openai_tts_model: str = "gpt-4o-mini-tts"
     fal_key: str | None = None

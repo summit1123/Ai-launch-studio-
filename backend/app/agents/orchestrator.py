@@ -131,25 +131,20 @@ class MainOrchestrator:
             ]
         )
 
-        # Phase 4: Media Generation (Optional/Post-processing)
+        # Phase 4: Media generation (best-effort)
         poster_image_url = None
         video_url = None
-        
-        if not brief.product_name.startswith("[MOCK"):
-            # Image Generation (DALL-E 3)
-            poster_image_url = await self._media.generate_poster(
-                headline=poster.headline,
-                brief=poster.subheadline or poster.summary,
-                keywords=poster.key_visual_keywords
-            )
-            
-            # Video Generation (Sora) - This might be slow
-            video_url = await self._media.generate_video(
-                prompt=f"Cinematic product launch video for '{brief.product_name}'. {video.narration_script}",
-                seconds=brief.video_seconds,
-            )
+        poster_image_url = await self._media.generate_poster(
+            headline=poster.headline,
+            brief=poster.subheadline or poster.summary,
+            keywords=poster.key_visual_keywords,
+        )
+        video_url = await self._media.generate_video(
+            prompt=f"Cinematic product launch video for '{brief.product_name}'. {video.narration_script}",
+            seconds=brief.video_seconds,
+        )
 
-        return LaunchPackage(
+        package = LaunchPackage(
             request_id=str(uuid4()),
             brief=brief,
             research_summary=research,
@@ -174,6 +169,7 @@ class MainOrchestrator:
             timeline=timeline,
         )
         logger.info("Pipeline completed for '%s' in %.1fs", brief.product_name, time.monotonic() - t0)
+        return package
 
     @staticmethod
     def _context_block(parts: list[tuple[str, AgentPayload]]) -> str:
