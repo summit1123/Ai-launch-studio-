@@ -6,7 +6,10 @@ import type {
   ChatSessionCreateRequest,
   ChatSessionCreateResponse,
   ChatSessionGetResponse,
+  JobGetResponse,
+  JobListResponse,
   RunGenerateResponse,
+  RunGenerateAsyncResponse,
   RunGetResponse,
   StreamEvent,
   StreamEventType,
@@ -340,10 +343,59 @@ export async function generateRun(
   );
 }
 
+export async function generateRunAsync(
+  sessionId: string,
+  options?: RequestOptions
+): Promise<RunGenerateAsyncResponse> {
+  return requestJson<RunGenerateAsyncResponse>(
+    `/runs/${sessionId}/generate/async`,
+    {
+      method: "POST",
+      signal: options?.signal,
+    },
+    "Run async generate API failed"
+  );
+}
+
 export async function getRun(runId: string): Promise<RunGetResponse> {
   return requestJson<RunGetResponse>(
     `/runs/${runId}`,
     { method: "GET" },
     "Run get API failed"
+  );
+}
+
+export async function getJob(jobId: string): Promise<JobGetResponse> {
+  return requestJson<JobGetResponse>(
+    `/jobs/${jobId}`,
+    { method: "GET" },
+    "Job get API failed"
+  );
+}
+
+export async function listJobs(params?: {
+  runId?: string;
+  sessionId?: string;
+  limit?: number;
+  offset?: number;
+}): Promise<JobListResponse> {
+  const query = new URLSearchParams();
+  if (params?.runId) {
+    query.set("run_id", params.runId);
+  }
+  if (params?.sessionId) {
+    query.set("session_id", params.sessionId);
+  }
+  if (params?.limit !== undefined) {
+    query.set("limit", String(params.limit));
+  }
+  if (params?.offset !== undefined) {
+    query.set("offset", String(params.offset));
+  }
+  const suffix = query.toString() ? `?${query.toString()}` : "";
+  return requestJson<JobListResponse>(
+    `/jobs${suffix}`,
+    { method: "GET" },
+    "Job list API failed"
   );
 }

@@ -2,7 +2,8 @@ import { useEffect, useState, type FormEvent } from "react";
 
 import {
   createChatSession,
-  generateRun,
+  generateRunAsync,
+  getJob,
   getChatSession,
   getRun,
   postChatMessage,
@@ -24,6 +25,7 @@ import type {
   ChatMessageResponse,
   ChatState,
   GateStatus,
+  JobStatus,
   LaunchPackage,
   StreamEvent,
   VoiceTurnRequest,
@@ -104,6 +106,10 @@ async function getRunSessionSnapshot(sessionId: string) {
   return getChatSession(sessionId);
 }
 
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
+}
+
 export function ChatWorkspace() {
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [state, setState] = useState<ChatState>("CHAT_COLLECTING");
@@ -118,6 +124,9 @@ export function ChatWorkspace() {
   const [error, setError] = useState<string | null>(null);
   const [launchPackage, setLaunchPackage] = useState<LaunchPackage | null>(null);
   const [runId, setRunId] = useState<string | null>(null);
+  const [runJobId, setRunJobId] = useState<string | null>(null);
+  const [runJobStatus, setRunJobStatus] = useState<JobStatus | null>(null);
+  const [runJobProgress, setRunJobProgress] = useState(0);
   const latestAssistantText =
     [...messages]
       .reverse()
@@ -295,30 +304,66 @@ export function ChatWorkspace() {
     if (!sessionId || !gate?.ready || generating) {
       return;
     }
+    const POLL_INTERVAL_MS = 1_500;
+    const MAX_POLLS = 240;
+
     setGenerating(true);
     setError(null);
     setLaunchPackage(null);
+    setRunId(null);
+    setRunJobId(null);
+    setRunJobStatus(null);
+    setRunJobProgress(0);
 
     try {
-      const generated = await generateRun(sessionId);
-      setRunId(generated.run_id);
-      setState(generated.state);
+      const generated = await generateRunAsync(sessionId);
+      setRunJobId(generated.job_id);
+      setRunJobStatus(generated.status);
+      appendMessage({
+        id: lineId("system"),
+        role: "system",
+        text: "비동기 생성을 시작했습니다. 작업 상태를 확인하는 중입니다.",
+      });
 
-      const result = await getRun(generated.run_id);
-      setState(result.state);
-      setLaunchPackage(result.package);
-      setMessages((previous) => [
-        ...previous,
-        {
-          id: lineId("system"),
-          role: "system",
-          text: "생성 완료: 시장/전략/소재 패키지를 확인하세요.",
-        },
-      ]);
+      for (let pollCount = 0; pollCount < MAX_POLLS; pollCount += 1) {
+        const job = await getJob(generated.job_id);
+        setRunJobStatus(job.status);
+        setRunJobProgress(job.progress);
+
+        if (job.status === "failed") {
+          throw new Error(job.error || "비동기 생성 작업이 실패했습니다.");
+        }
+        if (job.status === "completed" && job.run_id) {
+          setRunId(job.run_id);
+          const result = await getRun(job.run_id);
+          setState(result.state);
+          setLaunchPackage(result.package);
+          appendMessage({
+            id: lineId("system"),
+            role: "system",
+            text: "생성 완료: 시장/전략/소재 패키지를 확인하세요.",
+          });
+          return;
+        }
+
+        if (job.status === "running") {
+          setState("RUN_RESEARCH");
+        }
+        await delay(POLL_INTERVAL_MS);
+      }
+
+      throw new Error(
+        "생성 시간이 길어지고 있습니다. 잠시 후 작업 상태를 다시 확인해 주세요."
+      );
     } catch (err) {
       const message =
         err instanceof Error ? err.message : "런 생성에 실패했습니다.";
       setError(message);
+      appendMessage({
+        id: lineId("system"),
+        role: "system",
+        text: message,
+      });
     } finally {
       setGenerating(false);
     }
@@ -438,10 +483,15 @@ export function ChatWorkspace() {
             onClick={handleGenerate}
             disabled={!sessionId || !gate?.ready || generating}
           >
-            {generating ? "생성 중..." : "런 패키지 생성"}
+            {generating ? `생성 중...(${runJobProgress}%)` : "런 패키지 생성"}
           </button>
           {runId && <small style={{ color: "var(--muted)" }}>run_id: {runId}</small>}
         </div>
+        {runJobId && (
+          <small style={{ color: "var(--muted)" }}>
+            job_id: {runJobId} · 상태: {runJobStatus ?? "queued"} · 진행률: {runJobProgress}%
+          </small>
+        )}
       </section>
 
       {error && (

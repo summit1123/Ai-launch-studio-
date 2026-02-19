@@ -28,6 +28,8 @@ vi.mock("../api/client", () => ({
   getChatSession: vi.fn(),
   postChatMessage: vi.fn(),
   streamChatMessage: vi.fn(),
+  generateRunAsync: vi.fn(),
+  getJob: vi.fn(),
   generateRun: vi.fn(),
   getRun: vi.fn(),
   postVoiceTurn: vi.fn(),

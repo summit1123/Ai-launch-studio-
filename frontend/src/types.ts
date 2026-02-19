@@ -198,11 +198,38 @@ export type RunGenerateResponse = {
   state: ChatState;
 };
 
+export type JobStatus = "queued" | "running" | "completed" | "failed";
+
+export type RunGenerateAsyncResponse = {
+  job_id: string;
+  session_id: string;
+  status: JobStatus;
+};
+
 export type RunGetResponse = {
   run_id: string;
   session_id: string;
   state: ChatState;
   package: LaunchPackage;
+};
+
+export type JobGetResponse = {
+  job_id: string;
+  type: string;
+  status: JobStatus;
+  progress: number;
+  session_id: string;
+  run_id: string | null;
+  error: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type JobListResponse = {
+  items: JobGetResponse[];
+  total: number;
+  limit: number;
+  offset: number;
 };
 
 export type StreamEventType =
