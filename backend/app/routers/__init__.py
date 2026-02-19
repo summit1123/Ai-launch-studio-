@@ -1,6 +1,6 @@
 """Router exports."""
 
-from app.routers import launch
+from app.routers import chat, launch
 
-__all__ = ["launch"]
+__all__ = ["launch", "chat"]
 

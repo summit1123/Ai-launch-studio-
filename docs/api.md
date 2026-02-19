@@ -110,7 +110,7 @@
 
 ## 6. CHAT_V2 API (목표)
 ### 6.1 세션 시작
-- 상태: 계획
+- 상태: 구현됨
 - `POST /api/chat/session`
 
 요청
@@ -136,12 +136,12 @@
 ```
 
 ### 6.2 세션 조회
-- 상태: 계획
+- 상태: 구현됨
 - `GET /api/chat/session/{session_id}`
 - 설명: 현재 상태/슬롯/진행률 조회
 
 ### 6.3 텍스트 턴 (비스트림)
-- 상태: 계획
+- 상태: 구현됨
 - `POST /api/chat/session/{session_id}/message`
 - 설명: 단건 응답 필요 시 사용
 

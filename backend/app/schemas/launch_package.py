@@ -39,6 +39,56 @@ class AgentEnvelope(BaseModel):
     payload: AgentPayload
 
 
+ChatState = Literal[
+    "CHAT_COLLECTING",
+    "BRIEF_READY",
+    "RUN_RESEARCH",
+    "GEN_STRATEGY",
+    "GEN_CREATIVES",
+    "DONE",
+    "FAILED",
+]
+
+
+class ProductSlots(BaseModel):
+    name: str | None = None
+    category: str | None = None
+    features: list[str] = Field(default_factory=list)
+    price_band: str | None = None
+
+
+class TargetSlots(BaseModel):
+    who: str | None = None
+    why: str | None = None
+
+
+class ChannelSlots(BaseModel):
+    channels: list[str] = Field(default_factory=list)
+
+
+class GoalSlots(BaseModel):
+    weekly_goal: Literal["reach", "inquiry", "purchase"] | None = None
+
+
+class BriefSlots(BaseModel):
+    product: ProductSlots = Field(default_factory=ProductSlots)
+    target: TargetSlots = Field(default_factory=TargetSlots)
+    channel: ChannelSlots = Field(default_factory=ChannelSlots)
+    goal: GoalSlots = Field(default_factory=GoalSlots)
+
+
+class SlotUpdate(BaseModel):
+    path: str
+    value: Any
+    confidence: float = Field(default=0.0, ge=0.0, le=1.0)
+
+
+class GateStatus(BaseModel):
+    ready: bool
+    missing_required: list[str] = Field(default_factory=list)
+    completeness: float = Field(default=0.0, ge=0.0, le=1.0)
+
+
 class Milestone(BaseModel):
     name: str
     due: str
@@ -132,6 +182,45 @@ class LaunchPackage(BaseModel):
 class LaunchRunRequest(BaseModel):
     brief: LaunchBrief
     mode: Literal["fast", "standard"] = "standard"
+
+
+class ChatSessionCreateRequest(BaseModel):
+    locale: str = "ko-KR"
+    mode: Literal["fast", "standard"] = "standard"
+
+
+class ChatSessionCreateResponse(BaseModel):
+    session_id: str
+    state: ChatState
+    mode: Literal["fast", "standard"]
+    locale: str
+    brief_slots: BriefSlots
+    gate: GateStatus
+    assistant_message: str
+
+
+class ChatSessionGetResponse(BaseModel):
+    session_id: str
+    state: ChatState
+    mode: Literal["fast", "standard"]
+    locale: str
+    brief_slots: BriefSlots
+    gate: GateStatus
+    created_at: datetime
+    updated_at: datetime
+
+
+class ChatMessageRequest(BaseModel):
+    message: str = Field(min_length=1, max_length=3000)
+
+
+class ChatMessageResponse(BaseModel):
+    session_id: str
+    state: ChatState
+    assistant_message: str
+    slot_updates: list[SlotUpdate] = Field(default_factory=list)
+    brief_slots: BriefSlots
+    gate: GateStatus
 
 
 class LaunchRunResponse(BaseModel):

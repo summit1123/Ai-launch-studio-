@@ -30,6 +30,9 @@ uv sync --frozen
 - `GET /api/launch/history?limit=20&offset=0&q=`
 - `GET /api/launch/history/{request_id}`
 - `DELETE /api/launch/history/{request_id}`
+- `POST /api/chat/session`
+- `GET /api/chat/session/{session_id}`
+- `POST /api/chat/session/{session_id}/message`
 
 ## 참고
 - 미디어 생성은 `OPENAI_API_KEY`가 필요합니다.

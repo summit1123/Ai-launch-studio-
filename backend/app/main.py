@@ -7,10 +7,10 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
-from app.agents import MainOrchestrator
+from app.agents import ChatOrchestrator, MainOrchestrator
 from app.core.config import get_settings
 from app.repositories import SQLiteHistoryRepository
-from app.routers import launch
+from app.routers import chat, launch
 from app.services import AgentRuntime
 
 settings = get_settings()
@@ -36,12 +36,15 @@ runtime = AgentRuntime(
     use_agent_sdk=settings.use_agent_sdk,
 )
 orchestrator = MainOrchestrator(runtime=runtime)
+chat_orchestrator = ChatOrchestrator()
 history_repository = SQLiteHistoryRepository(db_path=settings.db_path)
 app.state.orchestrator = orchestrator
+app.state.chat_orchestrator = chat_orchestrator
 app.state.settings = settings
 app.state.history_repository = history_repository
 
 app.include_router(launch.router, prefix=settings.api_prefix, tags=["launch"])
+app.include_router(chat.router, prefix=settings.api_prefix, tags=["chat"])
 
 
 @app.get("/health")

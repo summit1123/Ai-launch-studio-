@@ -8,10 +8,13 @@
 ## 2. 현재 구조 (As-Is)
 - FastAPI 엔트리: `backend/app/main.py`
 - 런치 라우터: `backend/app/routers/launch.py`
+- 채팅 라우터(세션/조회/비스트림 턴): `backend/app/routers/chat.py`
 - 오케스트레이터: `backend/app/agents/orchestrator.py`
+- 채팅 오케스트레이터(슬롯 수집/게이트): `backend/app/agents/chat_orchestrator.py`
 - 저장소: `backend/app/repositories/sqlite_history.py`
 - 미디어 생성: `backend/app/services/media_service.py`
-- 현재는 `/api/launch/*` 중심 단건 실행 구조이며, 세션 기반 스트림 API는 미구현 상태다.
+- 현재는 `/api/launch/*` 단건 실행 + `/api/chat/session*` 최소 세션 API가 구현되어 있다.
+- 세션 기반 스트림 API, 음성 API, runs/jobs API는 아직 미구현 상태다.
 
 ## 3. 목표 구조 (To-Be)
 - `launch` API는 하위 호환으로 유지한다.
