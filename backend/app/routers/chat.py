@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import json
+from collections.abc import AsyncIterator
 from datetime import datetime
 
 from fastapi import APIRouter, HTTPException, Request
+from fastapi.responses import StreamingResponse
 
 from app.agents import ChatOrchestrator
 from app.repositories import SQLiteHistoryRepository
@@ -17,6 +20,11 @@ from app.schemas import (
 )
 
 router = APIRouter()
+
+
+def _sse_event(event_type: str, data: dict[str, object]) -> str:
+    payload = json.dumps(data, ensure_ascii=False)
+    return f"event: {event_type}\ndata: {payload}\n\n"
 
 
 @router.post("/chat/session", response_model=ChatSessionCreateResponse)
@@ -133,3 +141,86 @@ async def post_chat_message(
         brief_slots=turn.brief_slots,
         gate=turn.gate,
     )
+
+
+@router.post("/chat/session/{session_id}/message/stream")
+async def post_chat_message_stream(
+    session_id: str,
+    request_body: ChatMessageRequest,
+    request: Request,
+) -> StreamingResponse:
+    history_repository: SQLiteHistoryRepository = request.app.state.history_repository
+    chat_orchestrator: ChatOrchestrator = request.app.state.chat_orchestrator
+
+    record = history_repository.get_chat_session(session_id=session_id)
+    if record is None:
+        raise HTTPException(status_code=404, detail="Chat session not found")
+
+    user_message = request_body.message.strip()
+    if not user_message:
+        raise HTTPException(status_code=422, detail="message must not be blank")
+
+    history_repository.append_chat_message(
+        session_id=session_id,
+        role="user",
+        content=user_message,
+    )
+
+    if record.state != "CHAT_COLLECTING":
+        gate = chat_orchestrator.evaluate_gate(record.brief_slots)
+        assistant_message = "브리프 수집이 완료되었습니다. 다음 생성 단계를 실행해 주세요."
+        history_repository.append_chat_message(
+            session_id=session_id,
+            role="assistant",
+            content=assistant_message,
+        )
+
+        async def _ready_stream() -> AsyncIterator[str]:
+            yield _sse_event(
+                "stage.changed",
+                {"state": record.state},
+            )
+            yield _sse_event(
+                "planner.delta",
+                {"text": assistant_message},
+            )
+            yield _sse_event(
+                "run.completed",
+                {"state": record.state, "gate": gate.model_dump()},
+            )
+
+        return StreamingResponse(_ready_stream(), media_type="text/event-stream")
+
+    turn = chat_orchestrator.process_turn(message=user_message, slots=record.brief_slots)
+    history_repository.update_chat_state_and_slots(
+        session_id=session_id,
+        state=turn.state,
+        brief_slots=turn.brief_slots,
+        completeness=turn.gate.completeness,
+    )
+    history_repository.append_chat_message(
+        session_id=session_id,
+        role="assistant",
+        content=turn.assistant_message,
+    )
+
+    async def _event_stream() -> AsyncIterator[str]:
+        if turn.slot_updates:
+            yield _sse_event(
+                "slot.updated",
+                {"slot_updates": [slot.model_dump() for slot in turn.slot_updates]},
+            )
+        yield _sse_event("planner.delta", {"text": turn.assistant_message})
+        if turn.state != record.state:
+            yield _sse_event(
+                "stage.changed",
+                {"from": record.state, "to": turn.state},
+            )
+        if turn.gate.ready:
+            yield _sse_event("gate.ready", turn.gate.model_dump())
+        yield _sse_event(
+            "run.completed",
+            {"state": turn.state, "gate": turn.gate.model_dump()},
+        )
+
+    return StreamingResponse(_event_stream(), media_type="text/event-stream")

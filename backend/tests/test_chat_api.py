@@ -54,3 +54,20 @@ def test_chat_session_create_get_and_message_flow(tmp_path: Path) -> None:
     assert get_after_res.status_code == 200
     get_after_payload = get_after_res.json()
     assert get_after_payload["state"] == "BRIEF_READY"
+
+
+def test_chat_message_stream_returns_sse_events(tmp_path: Path) -> None:
+    client = _build_client(tmp_path)
+
+    create_res = client.post("/api/chat/session", json={"locale": "ko-KR", "mode": "standard"})
+    assert create_res.status_code == 200
+    session_id = create_res.json()["session_id"]
+
+    stream_res = client.post(
+        f"/api/chat/session/{session_id}/message/stream",
+        json={"message": "제품명은 런치부스터"},
+    )
+    assert stream_res.status_code == 200
+    assert stream_res.headers["content-type"].startswith("text/event-stream")
+    assert "event: planner.delta" in stream_res.text
+    assert "event: run.completed" in stream_res.text

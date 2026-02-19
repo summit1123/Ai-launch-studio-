@@ -146,7 +146,7 @@
 - 설명: 단건 응답 필요 시 사용
 
 ### 6.4 텍스트 턴 (스트림)
-- 상태: 계획
+- 상태: 구현됨
 - `POST /api/chat/session/{session_id}/message/stream`
 - Content-Type: `text/event-stream`
 - 설명: 플래너/리서치/전략/크리에이티브/보이스 이벤트를 순차 전달
