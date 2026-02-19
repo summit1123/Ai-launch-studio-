@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 
 import {
   createChatSession,
@@ -8,6 +8,9 @@ import {
   postChatMessage,
   streamChatMessage,
 } from "../api/client";
+import {
+  BriefSlotCard,
+} from "../components/BriefSlotCard";
 import {
   MessageStream,
   type MessageStreamItem,
@@ -93,28 +96,6 @@ function parseGateStatus(value: unknown): GateStatus | null {
   };
 }
 
-function summarizeSlots(slots: BriefSlots | null): string {
-  if (!slots) {
-    return "세션을 생성하는 중입니다.";
-  }
-
-  const features =
-    slots.product.features.length > 0 ? slots.product.features.join(", ") : "-";
-  const channels =
-    slots.channel.channels.length > 0 ? slots.channel.channels.join(", ") : "-";
-
-  return [
-    `제품명: ${slots.product.name ?? "-"}`,
-    `카테고리: ${slots.product.category ?? "-"}`,
-    `특징: ${features}`,
-    `가격대: ${slots.product.price_band ?? "-"}`,
-    `타겟: ${slots.target.who ?? "-"}`,
-    `구매 이유: ${slots.target.why ?? "-"}`,
-    `채널: ${channels}`,
-    `주간 목표: ${slots.goal.weekly_goal ?? "-"}`,
-  ].join("\n");
-}
-
 async function getRunSessionSnapshot(sessionId: string) {
   return getChatSession(sessionId);
 }
@@ -132,10 +113,6 @@ export function ChatWorkspace() {
   const [error, setError] = useState<string | null>(null);
   const [launchPackage, setLaunchPackage] = useState<LaunchPackage | null>(null);
   const [runId, setRunId] = useState<string | null>(null);
-
-  const completeness = useMemo(() => {
-    return gate ? Math.round(gate.completeness * 100) : 0;
-  }, [gate]);
 
   useEffect(() => {
     let cancelled = false;
@@ -389,30 +366,7 @@ export function ChatWorkspace() {
 
       <section className="glass-panel">
         <h2 className="section-title">브리프 게이트</h2>
-        <p style={{ margin: "0 0 10px", color: "var(--muted)" }}>
-          완성도 {completeness}%{gate?.ready ? " · 준비 완료" : " · 정보 수집 필요"}
-        </p>
-        {!gate?.ready && gate && (
-          <p style={{ marginTop: 0, color: "var(--muted)" }}>
-            누락 슬롯: {gate.missing_required.join(", ")}
-          </p>
-        )}
-
-        <pre
-          style={{
-            margin: 0,
-            borderRadius: "12px",
-            border: "1px solid var(--surface-border)",
-            background: "rgba(15, 23, 42, 0.7)",
-            padding: "14px",
-            whiteSpace: "pre-wrap",
-            fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
-            fontSize: "0.82rem",
-            color: "var(--ink)",
-          }}
-        >
-          {summarizeSlots(briefSlots)}
-        </pre>
+        <BriefSlotCard slots={briefSlots} gate={gate} />
 
         <div style={{ marginTop: "14px", display: "flex", gap: "10px", alignItems: "center" }}>
           <button
