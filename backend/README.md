@@ -3,12 +3,26 @@
 ## 실행 (uv)
 ```bash
 cd /Users/gimdonghyeon/Downloads/ai-launch-studio/backend
-uv venv
-source .venv/bin/activate
-uv pip install -r requirements.txt
+uv sync
 cp .env.example .env
 uv run uvicorn app.main:app --reload --port 8000
 ```
+
+## 테스트 실행
+```bash
+cd /Users/gimdonghyeon/Downloads/ai-launch-studio/backend
+uv run pytest -q
+```
+
+## 의존성 관리
+- 표준 파일: `pyproject.toml`, `uv.lock`
+- 신규 의존성 추가 후 lock 갱신:
+```bash
+cd /Users/gimdonghyeon/Downloads/ai-launch-studio/backend
+uv lock
+uv sync --frozen
+```
+- `requirements.txt`는 레거시 호환용으로 유지
 
 ## 주요 엔드포인트
 - `GET /health`
