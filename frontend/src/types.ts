@@ -103,6 +103,7 @@ export type ChannelSlots = {
 
 export type GoalSlots = {
   weekly_goal: "reach" | "inquiry" | "purchase" | null;
+  video_seconds: number | null;
 };
 
 export type BriefSlots = {

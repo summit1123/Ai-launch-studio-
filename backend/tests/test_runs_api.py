@@ -66,7 +66,7 @@ def test_generate_and_get_run_from_session(tmp_path: Path) -> None:
             "message": (
                 "제품명은 런치부스터, 카테고리는 스킨케어, 특징은 저자극, 빠른흡수, 비건, "
                 "가격은 29000원, 타겟은 20대 여성, 이유는 트러블 진정, "
-                "채널은 인스타와 네이버, 목표는 구매"
+                "채널은 인스타와 네이버, 목표는 구매, 영상 길이는 8초"
             )
         },
     )
@@ -84,6 +84,7 @@ def test_generate_and_get_run_from_session(tmp_path: Path) -> None:
     get_payload = get_res.json()
     assert get_payload["state"] == "DONE"
     assert get_payload["package"]["request_id"] == "run_test_001"
+    assert get_payload["package"]["brief"]["video_seconds"] == 10
 
     repo: SQLiteHistoryRepository = client.app.state.history_repository
     media_assets = repo.list_media_assets(run_id="run_test_001")

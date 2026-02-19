@@ -252,6 +252,9 @@ def _save_run_outputs(
 
 def _to_launch_brief(slots: BriefSlots) -> LaunchBrief:
     goal = slots.goal.weekly_goal or "inquiry"
+    safe_video_seconds = slots.goal.video_seconds
+    if safe_video_seconds not in {5, 10, 15, 20}:
+        safe_video_seconds = 10
     core_kpi_map = {
         "reach": "주간 조회수 증가",
         "inquiry": "주간 문의 증가",
@@ -269,7 +272,7 @@ def _to_launch_brief(slots: BriefSlots) -> LaunchBrief:
         core_kpi=core_kpi,
         region="KR",
         channel_focus=slots.channel.channels,
-        video_seconds=10,
+        video_seconds=safe_video_seconds,
     )
 
 

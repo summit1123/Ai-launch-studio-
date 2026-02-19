@@ -20,6 +20,7 @@ const blankSlots = {
   },
   goal: {
     weekly_goal: null,
+    video_seconds: null,
   },
 };
 

@@ -70,6 +70,12 @@ class ChannelSlots(BaseModel):
 
 class GoalSlots(BaseModel):
     weekly_goal: Literal["reach", "inquiry", "purchase"] | None = None
+    video_seconds: int | None = Field(
+        default=None,
+        ge=5,
+        le=20,
+        description="Preferred video length in seconds (5/10/15/20)",
+    )
 
 
 class BriefSlots(BaseModel):

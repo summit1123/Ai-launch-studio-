@@ -22,6 +22,13 @@ function listValue(values: string[] | undefined): string {
   return values.join(", ");
 }
 
+function videoSecondsValue(value: number | null | undefined): string {
+  if (typeof value !== "number" || Number.isNaN(value) || value <= 0) {
+    return "-";
+  }
+  return `${value}초`;
+}
+
 function buildCards(slots: BriefSlots | null): SlotCard[] {
   if (!slots) {
     return [
@@ -69,7 +76,10 @@ function buildCards(slots: BriefSlots | null): SlotCard[] {
     {
       title: "목표",
       ready: goalReady,
-      items: [{ label: "주간 목표", value: textValue(slots.goal.weekly_goal) }],
+      items: [
+        { label: "주간 목표", value: textValue(slots.goal.weekly_goal) },
+        { label: "영상 길이", value: videoSecondsValue(slots.goal.video_seconds) },
+      ],
     },
   ];
 }

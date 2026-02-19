@@ -52,6 +52,7 @@ class ChatOrchestrator:
         "channel.channels": "우선 집중할 채널 1~2개를 알려주세요. (예: 인스타, 네이버)",
         "goal.weekly_goal": "이번 주 목표를 선택해주세요. (조회/문의/구매)",
     }
+    SUPPORTED_VIDEO_SECONDS = (5, 10, 15, 20)
 
     @staticmethod
     def new_session_id() -> str:
@@ -64,7 +65,7 @@ class ChatOrchestrator:
     def process_turn(self, *, message: str, slots: BriefSlots) -> ChatTurnResult:
         normalized = message.strip()
         working_slots = slots.model_copy(deep=True)
-        slot_updates = self._extract_updates(message=normalized, slots=working_slots)
+        slot_updates, notices = self._extract_updates(message=normalized, slots=working_slots)
 
         for update in slot_updates:
             self._apply_update(slots=working_slots, update=update)
@@ -83,6 +84,9 @@ class ChatOrchestrator:
                 "좋아요. 부족한 정보를 한 가지씩 채워볼게요.",
             )
             state = "CHAT_COLLECTING"
+
+        if notices:
+            assistant_message = "\n".join([*notices, assistant_message])
 
         return ChatTurnResult(
             state=state,
@@ -114,8 +118,9 @@ class ChatOrchestrator:
     def first_question(self) -> str:
         return self.QUESTION_BY_PATH["product.name"]
 
-    def _extract_updates(self, *, message: str, slots: BriefSlots) -> list[SlotUpdate]:
+    def _extract_updates(self, *, message: str, slots: BriefSlots) -> tuple[list[SlotUpdate], list[str]]:
         updates: list[SlotUpdate] = []
+        notices: list[str] = []
         lowered = message.lower()
 
         if not slots.product.name:
@@ -199,7 +204,28 @@ class ChatOrchestrator:
             if goal:
                 updates.append(SlotUpdate(path="goal.weekly_goal", value=goal, confidence=0.91))
 
-        return updates
+        requested_video_seconds = self._extract_video_seconds(message=message, lowered=lowered)
+        if requested_video_seconds is not None:
+            current_video_seconds = slots.goal.video_seconds
+            normalized_video_seconds = self._normalize_video_seconds(requested_video_seconds)
+            if current_video_seconds != normalized_video_seconds:
+                updates.append(
+                    SlotUpdate(
+                        path="goal.video_seconds",
+                        value=normalized_video_seconds,
+                        confidence=0.93,
+                    )
+                )
+            if current_video_seconds != normalized_video_seconds or requested_video_seconds != normalized_video_seconds:
+                notices.append(
+                    self._build_video_seconds_notice(
+                        requested=requested_video_seconds,
+                        normalized=normalized_video_seconds,
+                        previous=current_video_seconds,
+                    )
+                )
+
+        return updates, notices
 
     @staticmethod
     def _extract_features(*, message: str) -> list[str]:
@@ -261,6 +287,49 @@ class ChatOrchestrator:
         return None
 
     @staticmethod
+    def _extract_video_seconds(*, message: str, lowered: str) -> int | None:
+        explicit_patterns = (
+            r"(?:영상|비디오|video)\s*(?:길이|시간|duration)?\s*(?:은|는|:)?\s*(\d{1,2})\s*초",
+            r"(\d{1,2})\s*초(?:짜리)?\s*(?:영상|비디오|video|광고)",
+        )
+        for pattern in explicit_patterns:
+            match = re.search(pattern, message, flags=re.IGNORECASE)
+            if match:
+                return int(match.group(1))
+
+        if any(keyword in lowered for keyword in ("영상", "비디오", "video", "광고", "숏폼")):
+            fallback_match = re.search(r"(\d{1,2})\s*초", message)
+            if fallback_match:
+                return int(fallback_match.group(1))
+        return None
+
+    @classmethod
+    def _normalize_video_seconds(cls, seconds: int) -> int:
+        requested = max(1, int(seconds))
+        return min(
+            cls.SUPPORTED_VIDEO_SECONDS,
+            key=lambda candidate: (abs(candidate - requested), candidate),
+        )
+
+    @classmethod
+    def _build_video_seconds_notice(
+        cls,
+        *,
+        requested: int,
+        normalized: int,
+        previous: int | None,
+    ) -> str:
+        supported = "/".join(str(value) for value in cls.SUPPORTED_VIDEO_SECONDS)
+        if requested != normalized:
+            return (
+                f"영상 길이 {requested}초는 지원 범위를 벗어나 {normalized}초로 보정했어요. "
+                f"(지원: {supported}초)"
+            )
+        if previous is None:
+            return f"영상 길이를 {normalized}초로 설정했어요."
+        return f"영상 길이를 {normalized}초로 변경했어요."
+
+    @staticmethod
     def _infer_category(lowered: str) -> str | None:
         mapping = (
             (("스킨", "세럼", "화장품", "크림"), "스킨케어"),
@@ -298,8 +367,8 @@ class ChatOrchestrator:
                 cleaned = cleaned[: -len(suffix)].strip()
         return cleaned
 
-    @staticmethod
-    def _apply_update(*, slots: BriefSlots, update: SlotUpdate) -> None:
+    @classmethod
+    def _apply_update(cls, *, slots: BriefSlots, update: SlotUpdate) -> None:
         if update.path == "product.name":
             slots.product.name = str(update.value)
         elif update.path == "product.category":
@@ -318,6 +387,12 @@ class ChatOrchestrator:
             normalized = str(update.value).strip().lower()
             if normalized in {"reach", "inquiry", "purchase"}:
                 slots.goal.weekly_goal = normalized
+        elif update.path == "goal.video_seconds":
+            try:
+                requested = int(update.value)
+            except (TypeError, ValueError):
+                return
+            slots.goal.video_seconds = cls._normalize_video_seconds(requested)
 
     @staticmethod
     def _get_path_value(*, slots: BriefSlots, path: str) -> object:

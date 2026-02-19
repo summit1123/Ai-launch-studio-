@@ -20,6 +20,7 @@ const blankSlots = {
   },
   goal: {
     weekly_goal: null,
+    video_seconds: null,
   },
 };
 
@@ -72,7 +73,7 @@ describe("ChatWorkspace voice flow", () => {
         },
         target: { who: "20대 여성", why: "트러블 진정" },
         channel: { channels: ["Instagram"] },
-        goal: { weekly_goal: "purchase" },
+        goal: { weekly_goal: "purchase", video_seconds: 10 },
       },
       gate: {
         ready: true,

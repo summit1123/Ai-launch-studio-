@@ -40,7 +40,7 @@ def test_chat_session_create_get_and_message_flow(tmp_path: Path) -> None:
             "message": (
                 "제품명은 런치부스터, 카테고리는 스킨케어, 특징은 저자극, 빠른흡수, 비건, "
                 "가격은 29000원, 타겟은 20대 여성, 이유는 트러블 진정, "
-                "채널은 인스타와 네이버, 목표는 구매"
+                "채널은 인스타와 네이버, 목표는 구매, 영상 길이는 8초"
             )
         },
     )
@@ -49,6 +49,8 @@ def test_chat_session_create_get_and_message_flow(tmp_path: Path) -> None:
     assert message_payload["state"] == "BRIEF_READY"
     assert message_payload["gate"]["ready"] is True
     assert message_payload["brief_slots"]["goal"]["weekly_goal"] == "purchase"
+    assert message_payload["brief_slots"]["goal"]["video_seconds"] == 10
+    assert "10초" in message_payload["assistant_message"]
 
     get_after_res = client.get(f"/api/chat/session/{session_id}")
     assert get_after_res.status_code == 200

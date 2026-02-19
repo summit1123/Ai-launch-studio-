@@ -36,3 +36,16 @@ def test_process_turn_sets_brief_ready_when_required_fields_are_present() -> Non
     assert turn.brief_slots.target.why == "민감 피부 진정 필요"
     assert set(turn.brief_slots.channel.channels) == {"Instagram", "Naver"}
     assert turn.brief_slots.goal.weekly_goal == "inquiry"
+
+
+def test_process_turn_normalizes_video_seconds_and_returns_notice() -> None:
+    orchestrator = ChatOrchestrator()
+    slots = BriefSlots()
+    turn = orchestrator.process_turn(
+        message="영상 길이는 8초로 해줘. 제품명은 테스트",
+        slots=slots,
+    )
+
+    assert turn.brief_slots.goal.video_seconds == 10
+    assert "8초" in turn.assistant_message
+    assert "10초" in turn.assistant_message
