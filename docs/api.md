@@ -3,10 +3,11 @@
 ## 1. 문서 목적
 - 이 문서는 이 프로젝트에서 필요한 API를 **현재 구현(v1)**과 **목표 확장(v2)**으로 분리해 정의한다.
 - 팀 분업 시 API 누락/중복을 방지하기 위해 엔드포인트 카탈로그와 이벤트 계약을 함께 제공한다.
+- v2의 핵심 산출물은 "초기 기획서"가 아니라 **리서치 기반 실행형 런칭 패키지**다.
 
 ## 2. 공통 규칙
 - 기본 prefix: `/api`
-- 인증: MVP에서는 미적용 (추후 토큰/세션 인증 확장)
+- 인증: MVP에서는 미적용 (후순위로 `anon_id` 또는 로그인 기반 확장)
 - 공통 오류 포맷
 ```json
 {
@@ -24,7 +25,7 @@
 - `LAUNCH_V1`: 현재 단건 실행 API
 - `CHAT_V2`: 세션 기반 채팅 API
 - `VOICE_V2`: 음성 턴/STT/TTS API
-- `RUN_V2`: 생성 결과/내보내기 API
+- `RUN_V2`: 리서치+전략+소재 생성/조회 API
 - `JOB_V2`: 비동기 작업 상태 API
 
 `상태` 표기:
@@ -54,7 +55,7 @@
 ### 5.1 런치 실행
 - 상태: 구현됨
 - `POST /api/launch/run`
-- 설명: 브리프 단건 입력 -> 전체 런치 패키지 생성
+- 설명: 브리프 단건 입력 -> 기존 런치 패키지 생성
 
 요청 본문
 ```json
@@ -148,7 +149,7 @@
 - 상태: 계획
 - `POST /api/chat/session/{session_id}/message/stream`
 - Content-Type: `text/event-stream`
-- 설명: 플래너/전략/크리에이티브/보이스 이벤트를 순차 전달
+- 설명: 플래너/리서치/전략/크리에이티브/보이스 이벤트를 순차 전달
 
 ## 7. VOICE_V2 API (목표)
 ### 7.1 음성 턴
@@ -195,19 +196,39 @@
 ### 8.1 생성 트리거
 - 상태: 계획
 - `POST /api/runs/{session_id}/generate`
-- 설명: 게이트 충족 후 `strategy -> creative -> voice` 실행
+- 설명: 게이트 충족 후 `research -> strategy -> creative -> voice` 실행
 
 응답
 ```json
 {
   "run_id": "run_xxx",
-  "state": "GEN_STRATEGY"
+  "state": "RUN_RESEARCH"
 }
 ```
 
 ### 8.2 실행 결과 조회
 - 상태: 계획
 - `GET /api/runs/{run_id}`
+
+응답 (요약)
+```json
+{
+  "run_id": "run_xxx",
+  "session_id": "sess_xxx",
+  "state": "DONE",
+  "brief_summary": {},
+  "research_snapshot": {
+    "market_signals": [],
+    "competitor_notes": [],
+    "channel_observations": [],
+    "evidence": []
+  },
+  "strategy_plan": {},
+  "creative_assets": {},
+  "voice_assets": {},
+  "kpi_next_actions": {}
+}
+```
 
 ### 8.3 실행 결과 내보내기
 - 상태: 계획
@@ -256,7 +277,9 @@
 - `session.started`
 - `planner.delta`
 - `slot.updated`
+- `gate.ready`
 - `stage.changed`
+- `research.delta`
 - `strategy.delta`
 - `creative.delta`
 - `voice.delta`
@@ -273,6 +296,7 @@
 - `INVALID_INPUT`: 요청 본문 검증 실패
 - `SESSION_NOT_FOUND`: 없는 세션 ID
 - `GATE_NOT_READY`: 게이트 미충족 상태에서 생성 요청
+- `RESEARCH_TIMEOUT`: 리서치 단계 타임아웃
 - `MEDIA_TIMEOUT`: 영상/오디오 작업 타임아웃
 - `UPSTREAM_ERROR`: 모델/API 호출 실패
 - `INTERNAL_ERROR`: 서버 내부 오류
@@ -287,4 +311,5 @@
 - `docs/frontend_architecture.md`
 - `docs/orchestrator_design.md`
 - `docs/voice_chat_mvp_spec.md`
+- `docs/prompt_contracts.md`
 - `docs/db_schema.md`

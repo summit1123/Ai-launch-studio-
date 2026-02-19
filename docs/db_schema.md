@@ -66,10 +66,15 @@ CREATE TABLE run_outputs (
   run_id TEXT PRIMARY KEY,
   session_id TEXT NOT NULL,
   request_id TEXT,
+  status TEXT NOT NULL,
+  brief_summary_json TEXT NOT NULL,
+  research_json TEXT NOT NULL,
   strategy_json TEXT NOT NULL,
   creative_json TEXT NOT NULL,
   voice_json TEXT NOT NULL,
+  kpi_next_actions_json TEXT NOT NULL,
   created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
   FOREIGN KEY(session_id) REFERENCES chat_sessions(session_id)
 );
 ```
@@ -80,6 +85,7 @@ CREATE TABLE media_assets (
   asset_id TEXT PRIMARY KEY,
   run_id TEXT NOT NULL,
   asset_type TEXT NOT NULL,
+  status TEXT NOT NULL,
   local_path TEXT,
   remote_url TEXT,
   metadata_json TEXT NOT NULL,
@@ -92,8 +98,10 @@ CREATE TABLE media_assets (
 1. 기존 `launch_runs`는 유지
 2. 신규 테이블을 단계적으로 추가
 3. 필요 시 `package_json`에서 `run_outputs`로 백필
+4. 리서치 필드(`research_json`)를 먼저 도입하고 전략 단계에서 의존성 연결
 
 ## 4. 운영 권장
 - 실행 메타데이터는 길게 보관
 - 대용량 미디어 파일은 정리 정책 적용
 - 고아 파일(레코드 없는 파일) 정기 정리
+- 리서치 근거(`evidence`)는 URL/날짜/신뢰도 메타데이터를 함께 저장

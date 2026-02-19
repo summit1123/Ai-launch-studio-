@@ -2,7 +2,7 @@
 
 ## 제품
 - `mvp.md`: MVP 범위/완료 기준
-- `voice_chat_mvp_spec.md`: 음성 대화형(스무고개) 명세
+- `voice_chat_mvp_spec.md`: 음성+채팅 대화형 명세
 - `business_model.md`: BM 가설/요금/수익 구조
 - `expansion.md`: MVP 이후 확장 로드맵
 
@@ -15,6 +15,7 @@
 ## 데이터/API
 - `api.md`: 현재 API + 목표 API(대화/스트리밍/음성)
 - `db_schema.md`: 현재 SQLite + 목표 스키마
+- `prompt_contracts.md`: 에이전트 프롬프트/출력 JSON 계약서
 
 ## OpenAI 스택
 - `openai_stack.md`: 기능별 OpenAI 활용 계획
@@ -28,3 +29,4 @@
 - `../planning.md`: 커밋 단위 실행 계획
 - `codex_workflow.md`: Codex 작업 표준 워크플로
 - `skills_guide.md`: 스킬 선택/운영 가이드
+- `test_runbook.md`: 기능/복구/릴리즈 검증 시나리오

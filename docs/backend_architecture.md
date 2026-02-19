@@ -3,6 +3,7 @@
 ## 1. 문서 목적
 - 채팅+음성 세션 기반 MVP에서 백엔드의 모듈 경계, 스트림 처리 구조, 상태 전이 책임을 정의한다.
 - API 레이어와 오케스트레이터를 분리해 팀 병렬 개발 시 충돌을 줄인다.
+- 리서치 결과를 전략/소재 생성에 반영하는 데이터 경로를 명확히 한다.
 
 ## 2. 현재 구조 (As-Is)
 - FastAPI 엔트리: `backend/app/main.py`
@@ -16,6 +17,7 @@
 - `launch` API는 하위 호환으로 유지한다.
 - 신규 `chat/voice/runs/jobs` API로 세션 기반 실행을 제공한다.
 - 오케스트레이터는 내부 엔진 역할만 수행하고, 라우터는 프로토콜 변환에 집중한다.
+- 생성 파이프라인은 `planner -> research -> strategy -> creative -> voice` 순으로 정렬한다.
 
 ## 4. 권장 모듈 구조
 - 라우터
@@ -27,6 +29,7 @@
 - 에이전트
   - `agents/orchestrator.py`
   - `agents/planner_agent.py`
+  - `agents/research_agent.py`
   - `agents/strategy_agent.py`
   - `agents/creative_agent.py`
   - `agents/voice_agent.py`
@@ -34,6 +37,7 @@
   - `services/session_service.py`
   - `services/gate_service.py`
   - `services/stream_service.py`
+  - `services/research_service.py`
   - `services/voice_service.py`
   - `services/media_pipeline.py`
   - `services/copy_safety.py`
@@ -61,13 +65,13 @@
 
 ### 5.3 생성 실행
 1. 게이트 충족 확인
-2. `strategy -> creative -> voice` 순서 실행
+2. `research -> strategy -> creative -> voice` 순서 실행
 3. 결과 저장(`run_outputs`, `media_assets`)
 4. `run.completed` 이벤트 송출
 
 ## 6. 스트림 처리 설계
 ### 6.1 이벤트 발행 원칙
-- 이벤트 타입: `planner.delta`, `slot.updated`, `stage.changed`, `strategy.delta`, `creative.delta`, `voice.delta`, `asset.ready`, `run.completed`, `error`
+- 이벤트 타입: `planner.delta`, `slot.updated`, `gate.ready`, `stage.changed`, `research.delta`, `strategy.delta`, `creative.delta`, `voice.delta`, `asset.ready`, `run.completed`, `error`
 - 이벤트는 `seq` 증가 순으로 발행한다.
 - 라우터는 오케스트레이터 이벤트를 그대로 전달하고, 비즈니스 로직을 추가하지 않는다.
 
@@ -79,7 +83,7 @@
   "session_id": "sess_xxx",
   "type": "stage.changed",
   "created_at": "2026-02-19T15:00:00Z",
-  "data": {"state": "GEN_STRATEGY"}
+  "data": {"state": "RUN_RESEARCH"}
 }
 ```
 
@@ -89,34 +93,46 @@
 - 타임아웃 시 partial 결과를 저장하고 재실행 포인트를 남긴다.
 
 ## 7. 상태 관리
-- 오케스트레이터 상태: `CHAT_COLLECTING -> BRIEF_READY -> GEN_STRATEGY -> GEN_CREATIVES -> DONE/FAILED`
+- 오케스트레이터 상태: `CHAT_COLLECTING -> BRIEF_READY -> RUN_RESEARCH -> GEN_STRATEGY -> GEN_CREATIVES -> DONE/FAILED`
 - 브리프 게이트는 독립 서비스(`gate_service`)에서 판단한다.
 - 입력 경로(텍스트/음성)와 무관하게 동일 상태 머신을 사용한다.
 
-## 8. 신뢰성/성능
+## 8. 리서치 데이터 계약
+리서치 결과는 최소 아래 필드를 갖는다.
+- `market_signals`
+- `competitor_notes`
+- `channel_observations`
+- `evidence` (source/title/url/observed_at/confidence)
+
+전략 에이전트는 위 필드를 입력으로 받아 `positioning_options`, `weekly_plan`, `required_assets`를 만든다.
+
+## 9. 신뢰성/성능
 - 단계별 timeout budget 적용
 - 에이전트별 재시도 제한(기본 1회)
+- 리서치 실패 시 fallback으로 전략 단계 진행 허용
 - 고비용 미디어 작업은 비동기 잡으로 분리
 - run 단위 idempotency 키 고려
 
-## 9. 관측성
+## 10. 관측성
 - 모든 로그에 `request_id`, `session_id`, `run_id` 포함
 - 지표
   - 단계별 지연 시간
+  - 리서치 성공률/타임아웃율
   - 에이전트 실패율
   - 스트림 중단율
   - 음성 턴 성공률
 
-## 10. 보안/안전
+## 11. 보안/안전
 - API 키는 환경변수만 사용
 - 업로드 파일 크기/포맷 제한
 - 광고 카피 안전 필터 적용
 - 민감 정보 로그 마스킹
 
-## 11. 구현 참고 문서
+## 12. 구현 참고 문서
 - `docs/api.md`
 - `docs/db_schema.md`
 - `docs/orchestrator_design.md`
+- `docs/prompt_contracts.md`
 - `docs/voice_agent.md`
 - `docs/openai_stack.md`
 - `docs/sora_video_optimization.md`

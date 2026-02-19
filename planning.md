@@ -3,15 +3,25 @@
 ## 0. 목적
 - 채팅 입력과 음성 입력을 모두 지원하는 단일 세션 기반 MVP를 구현한다.
 - 입력 방식(텍스트/음성)이 달라도 동일한 브리프 게이트, 오케스트레이션 상태 전이, 출력 계약을 보장한다.
+- 브리프를 채운 뒤 리서치(시장/경쟁/채널)를 반영해 전략/소재를 생성한다.
 - 오케스트레이터 중심 분업 개발(팀 병렬 작업)이 가능하도록 API/스키마/문서/테스트 기준을 먼저 고정한다.
 - 커밋 단위를 작게 유지해 통합 리스크를 줄이고, 각 단계마다 재현 가능한 검증 명령으로 완료를 판정한다.
 - 구현 순서는 문서 -> 데이터 계약 -> 백엔드 -> 프론트 -> 품질 안정화로 고정한다.
+- 최종 산출물은 초기 아이디어 기획서가 아니라 실행형 런칭 패키지(시장 스냅샷 + 전략 + 소재 + KPI 액션)로 고정한다.
 
 ## 0-1. MVP 완료 정의 (필수)
 - 텍스트만 사용한 대화로 `CHAT_COLLECTING -> DONE` 완주 가능
 - 음성만 사용한 대화로 `CHAT_COLLECTING -> DONE` 완주 가능
 - 텍스트+음성 혼합 대화로 `CHAT_COLLECTING -> DONE` 완주 가능
-- 위 3가지 모두에서 동일한 전략/크리에이티브/보이스 결과 계약을 만족
+- 위 3가지 모두에서 동일한 `RUN_RESEARCH -> GEN_STRATEGY -> GEN_CREATIVES` 결과 계약을 만족
+
+## 0-2. MVP 산출물 정의
+- `brief_summary`: 제품/타겟/채널/목표 슬롯 요약
+- `research_snapshot`: 시장 시그널/경쟁사/채널 관찰/근거
+- `strategy_plan`: 포지셔닝 옵션/주간 실행 체크리스트
+- `creative_assets`: 카피/포스터/영상 프롬프트
+- `voice_assets`: 보이스 스크립트/타이밍/자막/TTS 설정
+- `kpi_next_actions`: KPI와 다음 대화 입력 가이드
 
 ## 1. 작업 규칙
 - 브랜치: `chat-voice-mvp`
@@ -36,6 +46,8 @@
   - `PRD.md`
   - `docs/mvp.md`
   - `docs/voice_chat_mvp_spec.md`
+  - `docs/business_model.md`
+  - `docs/expansion.md`
 - 팀 협업 규칙
   - `team.md`
   - `docs/codex_workflow.md`
@@ -43,7 +55,9 @@
   - `docs/api.md`
   - `docs/db_schema.md`
   - `docs/orchestrator_design.md`
+  - `docs/prompt_contracts.md`
   - `docs/voice_agent.md`
+  - `docs/test_runbook.md`
 - OpenAI 기능/미디어
   - `docs/openai_stack.md`
   - `docs/sora_video_optimization.md`
@@ -55,8 +69,6 @@
   - `skills/launch-studio-mvp/SKILL.md`
   - `docs/skills_guide.md`
 - 단계 중 생성 예정 문서
-  - `docs/prompt_contracts.md` (A-04에서 생성)
-  - `docs/test_runbook.md` (A-04에서 생성)
   - `docs/release_notes_mvp.md` (R-02에서 생성)
 
 ## 2. 단계별 커밋 플랜
@@ -100,8 +112,8 @@
   - `docs/test_runbook.md` (신규)
   - `docs/README.md`
 - 검증
-  - 명령: `rg -n "Planner|Strategy|Creative|Voice" docs/prompt_contracts.md docs/test_runbook.md`
-  - 기대 결과: 4개 에이전트 키워드 모두 검색됨
+  - 명령: `rg -n "Planner|Research|Strategy|Creative|Voice" docs/prompt_contracts.md docs/test_runbook.md`
+  - 기대 결과: 5개 에이전트 키워드 모두 검색됨
 
 ## Phase B. DB와 저장소 계층
 - 필수 참조: `docs/db_schema.md`, `docs/api.md`, `docs/orchestrator_design.md`, `team.md`
@@ -235,14 +247,14 @@
   - 기대 결과: `stage.changed`, `planner.delta` 이벤트 검증 통과
 
 ### C-07
-- 커밋: `feat(orchestrator): CHAT_COLLECTING -> BRIEF_READY 전이 구현`
-- 목표: 상태 머신 1차 완성
+- 커밋: `feat(orchestrator): CHAT_COLLECTING -> BRIEF_READY -> RUN_RESEARCH 전이 구현`
+- 목표: 상태 머신 1차 완성 + 리서치 단계 진입
 - 변경 파일
   - `backend/app/agents/orchestrator.py`
   - `docs/orchestrator_design.md`
 - 검증
   - 명령: `cd backend && uv run pytest -q backend/tests/test_orchestrator_state.py`
-  - 기대 결과: 슬롯 충족 시 `BRIEF_READY` 전이 확인
+  - 기대 결과: 슬롯 충족 시 `BRIEF_READY` 후 `RUN_RESEARCH` 전이 확인
 
 ### C-08
 - 커밋: `test(api): chat session/message 통합 테스트 추가`
@@ -309,7 +321,7 @@
 
 ### D-06
 - 커밋: `feat(orchestrator): voice 관련 이벤트 추가`
-- 목표: `voice.transcribed`, `question.generated` 스트림 제공
+- 목표: 음성 입력 관련 이벤트가 공통 스트림 타입(`voice.delta`, `slot.updated`)으로 송출되도록 정합화
 - 변경 파일
   - `backend/app/agents/orchestrator.py`
   - `docs/orchestrator_design.md`
@@ -326,12 +338,22 @@
   - 명령: `cd backend && uv run pytest -q backend/tests/test_voice_fallback.py`
   - 기대 결과: 강제 실패 시 텍스트 폴백 경로 통과
 
-## Phase E. 전략/크리에이티브/보이스 패키지
-- 필수 참조: `docs/prompt_contracts.md`, `docs/voice_agent.md`, `docs/orchestrator_design.md`, `docs/api.md`, `team.md`
+## Phase E. 리서치/전략/크리에이티브/보이스 패키지
+- 필수 참조: `docs/prompt_contracts.md`, `docs/voice_agent.md`, `docs/orchestrator_design.md`, `docs/api.md`, `team.md`, `docs/openai_stack.md`
 
 ### E-01
+- 커밋: `feat(schema): research 출력 스키마 고정`
+- 목표: 시장/경쟁/채널/근거 구조화
+- 변경 파일
+  - `backend/app/schemas/launch_package.py`
+  - `docs/prompt_contracts.md`
+- 검증
+  - 명령: `cd backend && uv run pytest -q backend/tests/test_output_schemas.py -k research`
+  - 기대 결과: research 스키마 검증 통과
+
+### E-02
 - 커밋: `feat(schema): strategy 출력 스키마 고정`
-- 목표: 시장평가/포지셔닝 구조화
+- 목표: 시장평가/포지셔닝/주간 운영 플랜 타입 안정화
 - 변경 파일
   - `backend/app/schemas/launch_package.py`
   - `docs/prompt_contracts.md`
@@ -339,9 +361,9 @@
   - 명령: `cd backend && uv run pytest -q backend/tests/test_output_schemas.py -k strategy`
   - 기대 결과: strategy 스키마 검증 통과
 
-### E-02
+### E-03
 - 커밋: `feat(schema): creative 출력 스키마 고정`
-- 목표: 카피/포스터/영상 프롬프트 타입 안정화
+- 목표: 카피/포스터/영상 프롬프트 계약 확정
 - 변경 파일
   - `backend/app/schemas/launch_package.py`
   - `docs/prompt_contracts.md`
@@ -349,7 +371,7 @@
   - 명령: `cd backend && uv run pytest -q backend/tests/test_output_schemas.py -k creative`
   - 기대 결과: creative 스키마 검증 통과
 
-### E-03
+### E-04
 - 커밋: `feat(schema): voice 출력 스키마 고정`
 - 목표: 내레이션/타이밍/자막 계약 확정
 - 변경 파일
@@ -359,7 +381,7 @@
   - 명령: `cd backend && uv run pytest -q backend/tests/test_output_schemas.py -k voice`
   - 기대 결과: `timing_map`, `subtitle_lines` 필수 필드 검증 통과
 
-### E-04
+### E-05
 - 커밋: `feat(api): POST /api/runs/{id}/generate 추가`
 - 목표: 게이트 이후 생성 트리거 분리
 - 변경 파일
@@ -370,18 +392,18 @@
   - 명령: `cd backend && uv run pytest -q backend/tests/test_runs_api.py -k generate`
   - 기대 결과: 생성 요청 시 `run_id` 반환
 
-### E-05
-- 커밋: `feat(orchestrator): strategy -> creative -> voice 순차 실행`
+### E-06
+- 커밋: `feat(orchestrator): research -> strategy -> creative -> voice 순차 실행`
 - 목표: 생성 파이프라인 일관화
 - 변경 파일
   - `backend/app/agents/orchestrator.py`
 - 검증
   - 명령: `cd backend && uv run pytest -q backend/tests/test_orchestrator_e2e.py -k sequential`
-  - 기대 결과: strategy/creative/voice 순서 실행 검증 통과
+  - 기대 결과: research/strategy/creative/voice 순서 실행 검증 통과
 
-### E-06
+### E-07
 - 커밋: `feat(persistence): run_outputs/media_assets 저장 연결`
-- 목표: 결과 재조회 가능
+- 목표: 리서치 포함 결과 재조회 가능
 - 변경 파일
   - `backend/app/repositories/run_output_repository.py`
   - `backend/app/repositories/media_asset_repository.py`
@@ -390,7 +412,7 @@
   - 명령: `cd backend && uv run pytest -q backend/tests/test_runs_api.py -k persistence`
   - 기대 결과: run 결과 조회 API 검증 통과
 
-### E-07
+### E-08
 - 커밋: `test(orchestrator): end-to-end 시나리오 테스트 추가`
 - 목표: 전체 흐름 회귀 방지
 - 변경 파일
@@ -601,3 +623,51 @@
 1. `chore(backend): uv 프로젝트 설정 파일 추가`
 2. `chore(backend): uv lock 파일 생성`
 3. `docs: prompt 계약서와 테스트 런북 추가`
+
+## 6. 후순위 백로그 (회원가입 없는 히스토리 분리)
+- 우선순위: 낮음 (MVP 핵심 플로우 구현 후 진행)
+- 목적: 회원가입 없이도 사용자별 히스토리를 분리해 노출 사고를 방지한다.
+- 접근: `anon_id`(httpOnly 쿠키) 기반 owner 분리
+- 필수 참조: `docs/api.md`, `docs/db_schema.md`, `team.md`
+
+### P-01
+- 커밋: `feat(security): 익명 사용자 식별 쿠키 발급 미들웨어 추가`
+- 목표: 최초 요청 시 `anon_id`를 발급하고 재방문 시 재사용
+- 변경 파일
+  - `backend/app/main.py`
+  - `backend/app/services/identity_service.py` (신규)
+  - `docs/api.md`
+- 검증
+  - 명령: `cd backend && uv run pytest -q backend/tests/test_identity_cookie.py`
+  - 기대 결과: 쿠키 발급/재사용 테스트 통과
+
+### P-02
+- 커밋: `feat(db): launch_runs에 owner_anon_id 컬럼 추가`
+- 목표: 이력 레코드에 소유자 식별자 저장
+- 변경 파일
+  - `backend/app/repositories/sqlite_history.py`
+  - `docs/db_schema.md`
+- 검증
+  - 명령: `cd backend && uv run pytest -q backend/tests/test_history_owner_column.py`
+  - 기대 결과: owner 컬럼 존재 및 저장 테스트 통과
+
+### P-03
+- 커밋: `feat(api): history 조회/상세/삭제 owner 필터 적용`
+- 목표: 자신의 이력만 조회/삭제 가능하도록 제한
+- 변경 파일
+  - `backend/app/routers/launch.py`
+  - `backend/app/repositories/sqlite_history.py`
+  - `docs/api.md`
+- 검증
+  - 명령: `cd backend && uv run pytest -q backend/tests/test_history_owner_scope.py`
+  - 기대 결과: 타 사용자 이력 접근 차단 테스트 통과
+
+### P-04 (선택)
+- 커밋: `feat(frontend): 익명 세션 만료 시 히스토리 재동기화 처리`
+- 목표: 쿠키 만료/재발급 상황에서 UX 혼란 최소화
+- 변경 파일
+  - `frontend/src/api/client.ts`
+  - `frontend/src/pages/Dashboard.tsx`
+- 검증
+  - 명령: `cd frontend && npm run build`
+  - 기대 결과: 만료 처리 로직 포함 빌드 성공

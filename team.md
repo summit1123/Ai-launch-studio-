@@ -9,16 +9,18 @@
 - 각 에이전트는 독립 브랜치에서 병렬로 개발한다.
 - 통합은 오케스트레이터 계약(API/스키마/이벤트)에 맞춰 순차 반영한다.
 
-## 3. 역할 분담 (v1)
+## 3. 역할 분담 (MVP)
 - 오케스트레이터 오너
   - 담당: 상태머신, 라우팅, 타임아웃/재시도, 이벤트 스트림, 통합 검증
   - 현재 책임자: 사용자
 - 플래너/게이트 담당
   - 담당: 슬롯 추출, confidence, 게이트 판정
-- 보이스 담당
-  - 담당: STT/TTS, 보이스 에이전트, 음성 턴 API
+- 리서치 담당
+  - 담당: 시장/경쟁/채널 조회 로직, 근거 메타데이터 표준화, 리서치 폴백
 - 전략/크리에이티브 담당
   - 담당: 전략/카피/포스터/영상 프롬프트 출력 계약
+- 보이스 담당
+  - 담당: STT/TTS, 보이스 에이전트, 음성 턴 API
 - 프론트 담당
   - 담당: 챗 UI, 음성 입력/재생 UI, 상태 표시
 - 운영/품질 담당
@@ -30,8 +32,9 @@
 - 권장 브랜치 예시
   - `orchestrator-core`
   - `agent-planner-gate`
-  - `agent-voice`
+  - `agent-research`
   - `agent-strategy-creative`
+  - `agent-voice`
   - `frontend-chat-voice`
 - 머지 조건
   - 스키마 호환성 확인
@@ -43,11 +46,12 @@
 - DB 계약: `docs/db_schema.md`
 - 오케스트레이션 상태/이벤트: `docs/orchestrator_design.md`
 - 보이스 계약: `docs/voice_agent.md`
-- 출력 스키마 계약: `docs/prompt_contracts.md` (생성 후 필수)
+- 출력 스키마 계약: `docs/prompt_contracts.md`
+- 검증 절차: `docs/test_runbook.md`
 
 ## 6. 작업 순서 (팀 공통)
 1. 문서 확인
-- `PRD.md`, `docs/mvp.md`, `docs/voice_chat_mvp_spec.md`
+- `PRD.md`, `docs/mvp.md`, `docs/voice_chat_mvp_spec.md`, `docs/prompt_contracts.md`
 2. 구현 범위 확정
 - 변경 범위를 이슈/PR 설명에 명시
 3. 구현
@@ -69,7 +73,7 @@
 - [ ] 음성 입력 경로 완주 가능
 - [ ] 텍스트+음성 혼합 경로 완주 가능
 - [ ] 게이트 미충족 시 생성 차단
-- [ ] 게이트 충족 시 전략/크리에이티브/보이스 생성
+- [ ] 게이트 충족 시 `RUN_RESEARCH -> GEN_STRATEGY -> GEN_CREATIVES` 완료
 - [ ] 이력 저장/재조회 가능
 
 ## 9. 충돌 방지 원칙
