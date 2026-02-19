@@ -38,7 +38,10 @@ uv sync --frozen
 - `POST /api/chat/session/{session_id}/voice-turn/stream`
 - `POST /api/chat/session/{session_id}/assistant-voice`
 - `POST /api/runs/{session_id}/generate`
+- `POST /api/runs/{session_id}/generate/async`
 - `GET /api/runs/{run_id}`
+- `GET /api/jobs/{job_id}`
+- `GET /api/jobs?run_id={run_id}&session_id={session_id}&limit=20&offset=0`
 
 ## 참고
 - 미디어 생성은 `OPENAI_API_KEY`가 필요합니다.

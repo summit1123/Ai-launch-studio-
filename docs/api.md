@@ -212,6 +212,20 @@
 }
 ```
 
+### 8.1-1 비동기 생성 트리거
+- 상태: 구현됨
+- `POST /api/runs/{session_id}/generate/async`
+- 설명: 긴 생성(영상 포함) 작업을 백그라운드 잡으로 실행하고 `job_id`를 반환
+
+응답
+```json
+{
+  "job_id": "job_xxx",
+  "session_id": "sess_xxx",
+  "status": "queued"
+}
+```
+
 ### 8.2 실행 결과 조회
 - 상태: 구현됨
 - `GET /api/runs/{run_id}`
@@ -247,7 +261,7 @@
 
 ## 9. JOB_V2 API (목표)
 ### 9.1 작업 상태 조회
-- 상태: 계획
+- 상태: 구현됨
 - `GET /api/jobs/{job_id}`
 - 설명: 영상/오디오 합성 등 비동기 작업 상태
 
@@ -255,16 +269,20 @@
 ```json
 {
   "job_id": "job_xxx",
-  "type": "video_render",
-  "status": "queued",
-  "progress": 32,
-  "run_id": "run_xxx"
+  "type": "run_generation",
+  "status": "running",
+  "progress": 60,
+  "session_id": "sess_xxx",
+  "run_id": "run_xxx",
+  "error": null,
+  "created_at": "2026-02-19T00:00:00Z",
+  "updated_at": "2026-02-19T00:01:00Z"
 }
 ```
 
 ### 9.2 작업 목록 조회
-- 상태: 계획
-- `GET /api/jobs?run_id={run_id}`
+- 상태: 구현됨
+- `GET /api/jobs?run_id={run_id}&session_id={session_id}&limit=20&offset=0`
 
 ## 10. 스트리밍 이벤트 계약 (CHAT_V2)
 ### 10.1 이벤트 엔벨로프

@@ -49,6 +49,8 @@ ChatState = Literal[
     "FAILED",
 ]
 
+JobStatus = Literal["queued", "running", "completed", "failed"]
+
 
 class ProductSlots(BaseModel):
     name: str | None = None
@@ -251,11 +253,36 @@ class RunGenerateResponse(BaseModel):
     state: ChatState
 
 
+class RunGenerateAsyncResponse(BaseModel):
+    job_id: str
+    session_id: str
+    status: JobStatus
+
+
 class RunGetResponse(BaseModel):
     run_id: str
     session_id: str
     state: ChatState
     package: LaunchPackage
+
+
+class JobGetResponse(BaseModel):
+    job_id: str
+    type: str
+    status: JobStatus
+    progress: int = Field(ge=0, le=100)
+    session_id: str
+    run_id: str | None = None
+    error: str | None = None
+    created_at: datetime
+    updated_at: datetime
+
+
+class JobListResponse(BaseModel):
+    items: list[JobGetResponse] = Field(default_factory=list)
+    total: int
+    limit: int
+    offset: int
 
 
 class LaunchRunResponse(BaseModel):
