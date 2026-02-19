@@ -70,7 +70,7 @@
     "core_kpi": "4주 내 재구매율 25%",
     "region": "KR",
     "channel_focus": ["Instagram", "YouTube"],
-    "video_seconds": 8
+    "video_seconds": 10
   },
   "mode": "standard"
 }

@@ -269,7 +269,7 @@ def _to_launch_brief(slots: BriefSlots) -> LaunchBrief:
         core_kpi=core_kpi,
         region="KR",
         channel_focus=slots.channel.channels,
-        video_seconds=8,
+        video_seconds=10,
     )
 
 

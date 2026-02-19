@@ -82,7 +82,7 @@ class MediaServiceVideoTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual("/static/assets/video.mp4", result)
         sent_seconds = _FakeAsyncClientSuccess.instances[0].post_files["seconds"][1]
-        self.assertEqual("8", sent_seconds)
+        self.assertEqual("5", sent_seconds)
 
     async def test_generate_video_polls_beyond_20_attempts_before_timeout(self) -> None:
         """Video jobs can exceed 100 seconds, so polling should exceed 20 attempts."""

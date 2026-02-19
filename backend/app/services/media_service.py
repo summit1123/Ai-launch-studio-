@@ -14,7 +14,7 @@ from openai import AsyncOpenAI
 from app.core.config import get_settings
 
 logger = logging.getLogger(__name__)
-SUPPORTED_VIDEO_SECONDS = (4, 8, 12)
+SUPPORTED_VIDEO_SECONDS = (5, 10, 15, 20)
 VIDEO_POLL_INTERVAL_SECONDS = 5
 VIDEO_MAX_POLLS = 72
 

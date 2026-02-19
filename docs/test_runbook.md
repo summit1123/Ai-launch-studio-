@@ -159,7 +159,7 @@ curl -s -X POST http://localhost:8000/api/launch/run \
       "core_kpi": "inquiry",
       "region": "KR",
       "channel_focus": ["Instagram"],
-      "video_seconds": 8
+      "video_seconds": 10
     },
     "mode": "fast"
   }' | jq .

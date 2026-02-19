@@ -17,8 +17,7 @@
 - size: `480x480`, `480x854`, `854x480`, `720x720`, `720x1280`, `1280x720`
 
 현재 코드 참고:
-- `backend/app/services/media_service.py`는 `4/8/12`로 정규화 중
-- 실제 API 지원값과 맞추는 정합화 작업 필요
+- `backend/app/services/media_service.py`는 `5/10/15/20`으로 정규화
 
 ## 3. 프롬프트 설계 패턴
 

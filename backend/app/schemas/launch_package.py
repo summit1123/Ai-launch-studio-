@@ -19,10 +19,10 @@ class LaunchBrief(BaseModel):
     region: str = Field(default="KR", min_length=2, description="Target market")
     channel_focus: list[str] = Field(default_factory=list)
     video_seconds: int = Field(
-        default=8,
-        ge=4,
-        le=30,
-        description="Target ad video length in seconds (Sora-supported values are normalized)",
+        default=10,
+        ge=5,
+        le=20,
+        description="Target ad video length in seconds (normalized to 5/10/15/20)",
     )
 
 
