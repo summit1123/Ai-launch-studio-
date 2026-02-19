@@ -36,6 +36,17 @@ class RunOutputRecord:
     package: LaunchPackage
 
 
+@dataclass
+class MediaAssetRecord:
+    asset_id: str
+    run_id: str
+    asset_type: str
+    local_path: str | None
+    remote_url: str | None
+    metadata: dict[str, Any]
+    created_at: str
+
+
 class SQLiteHistoryRepository:
     """Persists launch outputs for replay and audit."""
 
@@ -449,6 +460,79 @@ class SQLiteHistoryRepository:
                     created_at=row["created_at"],
                     updated_at=row["updated_at"],
                     package=package,
+                )
+            )
+        return results
+
+    def save_media_asset(
+        self,
+        *,
+        run_id: str,
+        asset_type: str,
+        local_path: str | None = None,
+        remote_url: str | None = None,
+        metadata: dict[str, Any] | None = None,
+    ) -> str:
+        asset_id = f"asset_{uuid4().hex[:16]}"
+        created_at = self._utc_now()
+        metadata_payload = json.dumps(metadata or {}, ensure_ascii=False)
+        with self._connect() as conn:
+            conn.execute(
+                """
+                INSERT INTO media_assets (
+                    asset_id,
+                    run_id,
+                    asset_type,
+                    local_path,
+                    remote_url,
+                    metadata_json,
+                    created_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    asset_id,
+                    run_id,
+                    asset_type,
+                    local_path,
+                    remote_url,
+                    metadata_payload,
+                    created_at,
+                ),
+            )
+            conn.commit()
+        return asset_id
+
+    def list_media_assets(self, *, run_id: str) -> list[MediaAssetRecord]:
+        with self._connect() as conn:
+            rows = conn.execute(
+                """
+                SELECT asset_id, run_id, asset_type, local_path, remote_url, metadata_json, created_at
+                FROM media_assets
+                WHERE run_id = ?
+                ORDER BY created_at ASC
+                """,
+                (run_id,),
+            ).fetchall()
+
+        results: list[MediaAssetRecord] = []
+        for row in rows:
+            metadata_raw = row["metadata_json"] or "{}"
+            try:
+                metadata = json.loads(metadata_raw)
+            except json.JSONDecodeError:
+                metadata = {}
+            if not isinstance(metadata, dict):
+                metadata = {}
+            results.append(
+                MediaAssetRecord(
+                    asset_id=row["asset_id"],
+                    run_id=row["run_id"],
+                    asset_type=row["asset_type"],
+                    local_path=row["local_path"],
+                    remote_url=row["remote_url"],
+                    metadata=metadata,
+                    created_at=row["created_at"],
                 )
             )
         return results

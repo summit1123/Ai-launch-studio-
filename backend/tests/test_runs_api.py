@@ -11,17 +11,13 @@ from app.routers import chat, runs
 from app.schemas import (
     BizPlanningOutput,
     DevOutput,
-    LaunchBrief,
     LaunchPackage,
     LaunchRunRequest,
     MarketerOutput,
     MarketingAssets,
     MDOutput,
     PlannerOutput,
-    PosterBriefOutput,
-    ProductCopyOutput,
     ResearchOutput,
-    VideoScriptOutput,
 )
 
 
@@ -41,6 +37,8 @@ class _FakeRunOrchestrator:
                 video_script="video",
                 poster_brief="poster",
                 product_copy="copy",
+                poster_image_url="/static/assets/poster_test.png",
+                video_url="https://cdn.example.com/video_test.mp4",
             ),
             risks_and_mitigations=[],
             timeline=[],
@@ -86,6 +84,11 @@ def test_generate_and_get_run_from_session(tmp_path: Path) -> None:
     get_payload = get_res.json()
     assert get_payload["state"] == "DONE"
     assert get_payload["package"]["request_id"] == "run_test_001"
+
+    repo: SQLiteHistoryRepository = client.app.state.history_repository
+    media_assets = repo.list_media_assets(run_id="run_test_001")
+    assert len(media_assets) == 2
+    assert {item.asset_type for item in media_assets} == {"poster_image", "video"}
 
 
 def test_generate_run_rejects_when_gate_not_ready(tmp_path: Path) -> None:

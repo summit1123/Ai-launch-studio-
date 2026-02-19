@@ -13,6 +13,7 @@ from app.repositories import SQLiteHistoryRepository
 from app.schemas import (
     BriefSlots,
     LaunchBrief,
+    LaunchPackage,
     LaunchRunRequest,
     RunGenerateResponse,
     RunGetResponse,
@@ -80,6 +81,11 @@ async def generate_run(session_id: str, request: Request) -> RunGenerateResponse
         launch_package=launch_package,
         state="DONE",
     )
+    _persist_media_assets(
+        history_repository=history_repository,
+        run_id=run_id,
+        launch_package=launch_package,
+    )
     history_repository.update_chat_state_and_slots(
         session_id=session_id,
         state="DONE",
@@ -124,3 +130,32 @@ def _to_launch_brief(slots: BriefSlots) -> LaunchBrief:
         channel_focus=slots.channel.channels,
         video_seconds=8,
     )
+
+
+def _persist_media_assets(
+    *,
+    history_repository: SQLiteHistoryRepository,
+    run_id: str,
+    launch_package: LaunchPackage,
+) -> None:
+    assets = launch_package.marketing_assets
+    if assets.poster_image_url:
+        history_repository.save_media_asset(
+            run_id=run_id,
+            asset_type="poster_image",
+            local_path=assets.poster_image_url if assets.poster_image_url.startswith("/static/") else None,
+            remote_url=assets.poster_image_url if assets.poster_image_url.startswith("http") else None,
+            metadata={
+                "headline": assets.poster_headline,
+            },
+        )
+    if assets.video_url:
+        history_repository.save_media_asset(
+            run_id=run_id,
+            asset_type="video",
+            local_path=assets.video_url if assets.video_url.startswith("/static/") else None,
+            remote_url=assets.video_url if assets.video_url.startswith("http") else None,
+            metadata={
+                "scene_count": len(assets.video_scene_plan),
+            },
+        )
