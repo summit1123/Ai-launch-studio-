@@ -5,6 +5,8 @@ backend/**/__pycache__/
 backend/**/*.pyc
 backend/.env
 backend/*.db
+/.env
+/.env\ 
 
 # Node / Vite
 frontend/node_modules/
