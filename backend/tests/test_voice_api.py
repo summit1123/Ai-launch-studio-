@@ -79,6 +79,23 @@ def test_assistant_voice_returns_audio_url(tmp_path: Path) -> None:
     assert payload["bytes_size"] == 1234
 
 
+def test_voice_turn_stream_returns_voice_events(tmp_path: Path) -> None:
+    client = _build_client(tmp_path)
+    create_res = client.post("/api/chat/session", json={"locale": "ko-KR", "mode": "standard"})
+    session_id = create_res.json()["session_id"]
+
+    stream_res = client.post(
+        f"/api/chat/session/{session_id}/voice-turn/stream",
+        files={"audio": ("sample.wav", b"fake-audio-bytes", "audio/wav")},
+        data={"locale": "ko-KR", "voice_preset": "friendly_ko"},
+    )
+    assert stream_res.status_code == 200
+    assert stream_res.headers["content-type"].startswith("text/event-stream")
+    assert "event: voice.delta" in stream_res.text
+    assert "event: slot.updated" in stream_res.text
+    assert "event: planner.delta" in stream_res.text
+
+
 def test_voice_turn_transcribe_failure_returns_text_fallback(tmp_path: Path) -> None:
     client = _build_client(tmp_path, fail_transcribe=True)
     create_res = client.post("/api/chat/session", json={"locale": "ko-KR", "mode": "standard"})

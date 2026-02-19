@@ -192,6 +192,12 @@
 }
 ```
 
+### 7.3 음성 턴 (스트림)
+- 상태: 구현됨
+- `POST /api/chat/session/{session_id}/voice-turn/stream`
+- Content-Type: `text/event-stream`
+- 설명: 음성 인식 결과와 슬롯 변경 이벤트를 스트림으로 전달
+
 ## 8. RUN_V2 API (목표)
 ### 8.1 생성 트리거
 - 상태: 구현됨

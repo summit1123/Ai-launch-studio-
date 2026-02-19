@@ -2,7 +2,11 @@
 
 from __future__ import annotations
 
+import json
+from collections.abc import AsyncIterator
+
 from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
+from fastapi.responses import StreamingResponse
 
 from app.agents import ChatOrchestrator, VoiceAgent
 from app.repositories import SQLiteHistoryRepository
@@ -16,14 +20,18 @@ from app.services import VoiceService
 router = APIRouter()
 
 
-@router.post("/chat/session/{session_id}/voice-turn", response_model=VoiceTurnResponse)
-async def post_voice_turn(
+def _sse_event(event_type: str, data: dict[str, object]) -> str:
+    payload = json.dumps(data, ensure_ascii=False)
+    return f"event: {event_type}\ndata: {payload}\n\n"
+
+
+async def _process_voice_turn(
     session_id: str,
     request: Request,
-    audio: UploadFile = File(...),
-    locale: str = Form(default="ko-KR"),
-    voice_preset: str = Form(default="friendly_ko"),
-) -> VoiceTurnResponse:
+    audio: UploadFile,
+    locale: str,
+    voice_preset: str,
+) -> tuple[str, VoiceTurnResponse]:
     history_repository: SQLiteHistoryRepository = request.app.state.history_repository
     chat_orchestrator: ChatOrchestrator = request.app.state.chat_orchestrator
     voice_agent: VoiceAgent = request.app.state.voice_agent
@@ -36,6 +44,7 @@ async def post_voice_turn(
     if record is None:
         raise HTTPException(status_code=404, detail="Chat session not found")
 
+    previous_state = record.state
     audio_bytes = await audio.read()
     transcript = await voice_service.transcribe(
         audio_bytes=audio_bytes,
@@ -48,7 +57,7 @@ async def post_voice_turn(
             question="음성 인식이 어려워요. 이번 답변은 텍스트로 입력해 주세요.",
             preset=voice_preset,
         )
-        return VoiceTurnResponse(
+        return previous_state, VoiceTurnResponse(
             session_id=session_id,
             transcript="",
             state=record.state,
@@ -75,7 +84,7 @@ async def post_voice_turn(
             role="assistant",
             content=next_question,
         )
-        return VoiceTurnResponse(
+        return previous_state, VoiceTurnResponse(
             session_id=session_id,
             transcript=transcript,
             state=record.state,
@@ -101,7 +110,7 @@ async def post_voice_turn(
         role="assistant",
         content=formatted_question,
     )
-    return VoiceTurnResponse(
+    return previous_state, VoiceTurnResponse(
         session_id=session_id,
         transcript=transcript,
         state=turn.state,
@@ -110,6 +119,62 @@ async def post_voice_turn(
         brief_slots=turn.brief_slots,
         gate=turn.gate,
     )
+
+
+@router.post("/chat/session/{session_id}/voice-turn", response_model=VoiceTurnResponse)
+async def post_voice_turn(
+    session_id: str,
+    request: Request,
+    audio: UploadFile = File(...),
+    locale: str = Form(default="ko-KR"),
+    voice_preset: str = Form(default="friendly_ko"),
+) -> VoiceTurnResponse:
+    _, response = await _process_voice_turn(
+        session_id=session_id,
+        request=request,
+        audio=audio,
+        locale=locale,
+        voice_preset=voice_preset,
+    )
+    return response
+
+
+@router.post("/chat/session/{session_id}/voice-turn/stream")
+async def post_voice_turn_stream(
+    session_id: str,
+    request: Request,
+    audio: UploadFile = File(...),
+    locale: str = Form(default="ko-KR"),
+    voice_preset: str = Form(default="friendly_ko"),
+) -> StreamingResponse:
+    previous_state, response = await _process_voice_turn(
+        session_id=session_id,
+        request=request,
+        audio=audio,
+        locale=locale,
+        voice_preset=voice_preset,
+    )
+
+    async def _event_stream() -> AsyncIterator[str]:
+        yield _sse_event(
+            "voice.delta",
+            {"transcript": response.transcript, "state": response.state},
+        )
+        if response.slot_updates:
+            yield _sse_event(
+                "slot.updated",
+                {"slot_updates": [slot.model_dump() for slot in response.slot_updates]},
+            )
+        if response.state != previous_state:
+            yield _sse_event(
+                "stage.changed",
+                {"from": previous_state, "to": response.state},
+            )
+        yield _sse_event("planner.delta", {"text": response.next_question})
+        if response.gate.ready:
+            yield _sse_event("gate.ready", response.gate.model_dump())
+
+    return StreamingResponse(_event_stream(), media_type="text/event-stream")
 
 
 @router.post("/chat/session/{session_id}/assistant-voice", response_model=AssistantVoiceResponse)

@@ -14,7 +14,7 @@
 - 저장소: `backend/app/repositories/sqlite_history.py`
 - 미디어 생성: `backend/app/services/media_service.py`
 - 현재는 `/api/launch/*` 단건 실행 + `/api/chat/session*` 세션 API와 텍스트 스트림 API가 구현되어 있다.
-- 기본 음성 API(`voice-turn`, `assistant-voice`)가 구현되어 있다.
+- 기본 음성 API(`voice-turn`, `assistant-voice`, `voice-turn/stream`)가 구현되어 있다.
 - 기본 runs API(`POST /api/runs/{session_id}/generate`, `GET /api/runs/{run_id}`)가 구현되어 있다.
 - jobs API는 아직 미구현 상태다.
 

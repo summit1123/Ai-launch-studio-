@@ -35,6 +35,7 @@ uv sync --frozen
 - `POST /api/chat/session/{session_id}/message`
 - `POST /api/chat/session/{session_id}/message/stream`
 - `POST /api/chat/session/{session_id}/voice-turn`
+- `POST /api/chat/session/{session_id}/voice-turn/stream`
 - `POST /api/chat/session/{session_id}/assistant-voice`
 - `POST /api/runs/{session_id}/generate`
 - `GET /api/runs/{run_id}`
