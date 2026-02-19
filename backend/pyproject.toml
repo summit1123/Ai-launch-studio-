@@ -1,0 +1,28 @@
+[project]
+name = "ai-launch-studio-backend"
+version = "0.1.0"
+description = "Backend API for AI Launch Studio"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+  "fastapi>=0.116.0",
+  "uvicorn[standard]>=0.35.0",
+  "pydantic>=2.11.0",
+  "pydantic-settings>=2.11.0",
+  "openai>=1.0.0",
+  "openai-agents>=0.9.0",
+  "httpx>=0.28.0",
+  "python-dotenv>=1.0.1",
+]
+
+[dependency-groups]
+dev = [
+  "pytest>=8.3.0",
+]
+
+[tool.uv]
+package = false
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
