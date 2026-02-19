@@ -1,8 +1,6 @@
 import { useState } from "react";
 import { Brain, Video, Palette, CheckCircle, ArrowRight, Zap, Plus, Minus, Rocket, Sparkles } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import type { LaunchBrief } from "../types";
-import { BRIEF_TEMPLATES, cloneBrief } from "../data/briefTemplates";
 
 const PARTNER_LOGOS = [
   "OpenAI", "Anthropic", "Mistral", "Google Cloud", "AWS", "NVIDIA", "Meta AI"
@@ -40,7 +38,7 @@ const FAQS = [
 ];
 
 type HomeProps = {
-  onStart: (brief?: LaunchBrief) => void;
+  onStart: () => void;
 };
 
 export function Home(props: HomeProps) {
