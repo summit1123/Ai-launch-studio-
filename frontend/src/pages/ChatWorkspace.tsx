@@ -6,6 +6,7 @@ import {
   getChatSession,
   getRun,
   postChatMessage,
+  postVoiceTurn,
   streamChatMessage,
 } from "../api/client";
 import {
@@ -15,6 +16,7 @@ import {
   MessageStream,
   type MessageStreamItem,
 } from "../components/MessageStream";
+import { VoiceInputButton } from "../components/VoiceInputButton";
 import { LaunchResult } from "./LaunchResult";
 import type {
   BriefSlots,
@@ -23,6 +25,7 @@ import type {
   GateStatus,
   LaunchPackage,
   StreamEvent,
+  VoiceTurnRequest,
 } from "../types";
 
 function lineId(prefix: string): string {
@@ -109,6 +112,7 @@ export function ChatWorkspace() {
   const [draft, setDraft] = useState("");
   const [loadingSession, setLoadingSession] = useState(false);
   const [sending, setSending] = useState(false);
+  const [voiceSending, setVoiceSending] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [launchPackage, setLaunchPackage] = useState<LaunchPackage | null>(null);
@@ -314,6 +318,44 @@ export function ChatWorkspace() {
     }
   };
 
+  const handleVoiceSubmit = async (payload: VoiceTurnRequest) => {
+    if (!sessionId || voiceSending) {
+      return;
+    }
+    setVoiceSending(true);
+    setError(null);
+
+    try {
+      const response = await postVoiceTurn(sessionId, payload);
+      if (response.transcript.trim()) {
+        appendMessage({
+          id: lineId("user"),
+          role: "user",
+          text: response.transcript,
+        });
+      }
+      setState(response.state);
+      setBriefSlots(response.brief_slots);
+      setGate(response.gate);
+      appendMessage({
+        id: lineId("assistant"),
+        role: "assistant",
+        text: response.next_question,
+      });
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "음성 전송에 실패했습니다.";
+      setError(message);
+      appendMessage({
+        id: lineId("system"),
+        role: "system",
+        text: message,
+      });
+    } finally {
+      setVoiceSending(false);
+    }
+  };
+
   return (
     <main className="container" style={{ marginTop: "80px", paddingBottom: "120px" }}>
       <header className="hero">
@@ -338,7 +380,7 @@ export function ChatWorkspace() {
             value={draft}
             onChange={(event) => setDraft(event.target.value)}
             placeholder="제품명, 카테고리, 특징, 가격대, 타겟, 채널, 목표를 자유롭게 입력하세요."
-            disabled={loadingSession || sending}
+            disabled={loadingSession || sending || voiceSending}
             style={{
               width: "100%",
               borderRadius: "12px",
@@ -356,12 +398,20 @@ export function ChatWorkspace() {
             <button
               type="submit"
               className="btn-primary-sm"
-              disabled={loadingSession || sending || !sessionId}
+              disabled={loadingSession || sending || voiceSending || !sessionId}
             >
               {sending ? "전송 중..." : "메시지 보내기"}
             </button>
           </div>
         </form>
+
+        <div style={{ marginTop: "12px" }}>
+          <VoiceInputButton
+            disabled={loadingSession || sending}
+            loading={voiceSending}
+            onSubmit={handleVoiceSubmit}
+          />
+        </div>
       </section>
 
       <section className="glass-panel">
