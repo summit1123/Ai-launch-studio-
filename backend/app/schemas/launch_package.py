@@ -19,10 +19,18 @@ class LaunchBrief(BaseModel):
     region: str = Field(default="KR", min_length=2, description="Target market")
     channel_focus: list[str] = Field(default_factory=list)
     video_seconds: int = Field(
-        default=10,
-        ge=5,
-        le=20,
-        description="Target ad video length in seconds (normalized to 5/10/15/20)",
+        default=12,
+        ge=4,
+        le=12,
+        description="Target ad video length in seconds (normalized to 4/8/12)",
+    )
+    product_image_url: str | None = Field(
+        default=None,
+        description="Uploaded product image URL used as visual reference",
+    )
+    product_image_context: str | None = Field(
+        default=None,
+        description="Vision summary extracted from uploaded product image",
     )
 
 
@@ -57,6 +65,8 @@ class ProductSlots(BaseModel):
     category: str | None = None
     features: list[str] = Field(default_factory=list)
     price_band: str | None = None
+    image_url: str | None = None
+    image_context: str | None = None
 
 
 class TargetSlots(BaseModel):
@@ -72,9 +82,9 @@ class GoalSlots(BaseModel):
     weekly_goal: Literal["reach", "inquiry", "purchase"] | None = None
     video_seconds: int | None = Field(
         default=None,
-        ge=5,
-        le=20,
-        description="Preferred video length in seconds (5/10/15/20)",
+        ge=4,
+        le=12,
+        description="Preferred video length in seconds (4/8/12)",
     )
 
 
@@ -231,6 +241,17 @@ class ChatMessageResponse(BaseModel):
     gate: GateStatus
 
 
+class ProductImageUploadResponse(BaseModel):
+    session_id: str
+    state: ChatState
+    image_url: str
+    image_summary: str | None = None
+    next_question: str
+    slot_updates: list[SlotUpdate] = Field(default_factory=list)
+    brief_slots: BriefSlots
+    gate: GateStatus
+
+
 class VoiceTurnResponse(BaseModel):
     session_id: str
     transcript: str
@@ -243,7 +264,7 @@ class VoiceTurnResponse(BaseModel):
 
 class AssistantVoiceRequest(BaseModel):
     text: str = Field(min_length=1, max_length=1200)
-    voice_preset: Literal["friendly_ko", "calm_ko", "neutral_ko"] = "friendly_ko"
+    voice_preset: Literal["cute_ko", "friendly_ko", "calm_ko", "neutral_ko"] = "cute_ko"
     format: Literal["mp3", "wav"] = "mp3"
 
 
@@ -301,6 +322,7 @@ class JobGetResponse(BaseModel):
     type: str
     status: JobStatus
     progress: int = Field(ge=0, le=100)
+    note: str | None = None
     session_id: str
     run_id: str | None = None
     error: str | None = None

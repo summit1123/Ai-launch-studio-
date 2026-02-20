@@ -4,7 +4,6 @@ import type { LaunchPackage } from "../types";
 
 type LaunchResultProps = {
   launchPackage: LaunchPackage;
-  showAssets?: boolean;
 };
 
 function keyPointList(items: string[]): string {
@@ -14,7 +13,7 @@ function keyPointList(items: string[]): string {
   return items.slice(0, 3).join(" / ");
 }
 
-export function LaunchResult({ launchPackage, showAssets = false }: LaunchResultProps) {
+export function LaunchResult({ launchPackage }: LaunchResultProps) {
   return (
     <section className="resultGrid">
       <article className="panel" style={{ padding: "40px" }}>
@@ -70,16 +69,7 @@ export function LaunchResult({ launchPackage, showAssets = false }: LaunchResult
         </div>
       </article>
 
-      {showAssets ? (
-        <AssetPreview assets={launchPackage.marketing_assets} />
-      ) : (
-        <section className="glass-panel">
-          <h2 className="section-title">이벤트/소재 생성 대기</h2>
-          <p style={{ marginBottom: 0, color: "var(--muted)" }}>
-            기획 보고서 검토 후, 아래 단계에서 포스터/영상 이벤트를 추가 생성하세요.
-          </p>
-        </section>
-      )}
+      <AssetPreview assets={launchPackage.marketing_assets} />
       <AgentTimeline timeline={launchPackage.timeline} />
     </section>
   );

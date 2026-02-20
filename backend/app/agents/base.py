@@ -28,6 +28,8 @@ class BaseStudioAgent(Generic[OutputT]):
 
     def _build_prompt(self, brief: LaunchBrief, context: str = "") -> str:
         channels = ", ".join(brief.channel_focus) if brief.channel_focus else "미지정"
+        image_ref = brief.product_image_url or "없음"
+        image_context = brief.product_image_context or "없음"
         return f"""
 당신은 AI Launch Studio의 실행형 에이전트입니다.
 목표는 "아이디어 설명"이 아니라 "즉시 실행 가능한 결과"를 주는 것입니다.
@@ -43,6 +45,8 @@ class BaseStudioAgent(Generic[OutputT]):
 - 지역: {brief.region}
 - 채널: {channels}
 - 영상 길이(초): {brief.video_seconds}
+- 제품 레퍼런스 이미지 URL: {image_ref}
+- 제품 레퍼런스 이미지 요약: {image_context}
 
 [공유 컨텍스트]
 {context or "없음"}

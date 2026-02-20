@@ -3,6 +3,7 @@ import type {
   AssistantVoiceResponse,
   ChatMessageRequest,
   ChatMessageResponse,
+  ProductImageUploadResponse,
   ChatSessionCreateRequest,
   ChatSessionCreateResponse,
   ChatSessionGetResponse,
@@ -26,6 +27,10 @@ const API_BASE_URL =
   import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8090/api";
 
 type RequestOptions = {
+  signal?: AbortSignal;
+};
+
+type StreamOptions = {
   signal?: AbortSignal;
 };
 
@@ -174,7 +179,8 @@ function parseSseBlock(block: string): StreamEvent | null {
 
   let eventType = "message";
   const dataLines: string[] = [];
-  for (const line of block.split("\n")) {
+  for (const rawLine of block.split("\n")) {
+    const line = rawLine.replace(/\r$/, "");
     if (line.startsWith("event:")) {
       eventType = line.slice("event:".length).trim();
       continue;
@@ -188,7 +194,7 @@ function parseSseBlock(block: string): StreamEvent | null {
     return null;
   }
 
-  const rawData = dataLines.join("\n");
+  const rawData = dataLines.join("\n").trim();
   let data: unknown = rawData;
   try {
     data = JSON.parse(rawData);
@@ -226,7 +232,7 @@ async function streamPost(
     if (done) {
       break;
     }
-    buffer += decoder.decode(value, { stream: true });
+    buffer += decoder.decode(value, { stream: true }).replace(/\r\n/g, "\n");
     while (true) {
       const boundary = buffer.indexOf("\n\n");
       if (boundary < 0) {
@@ -241,7 +247,57 @@ async function streamPost(
     }
   }
 
-  buffer += decoder.decode();
+  buffer += decoder.decode().replace(/\r\n/g, "\n");
+  const tailEvent = parseSseBlock(buffer);
+  if (tailEvent) {
+    onEvent(tailEvent);
+  }
+}
+
+async function streamGet(
+  path: string,
+  onEvent: (event: StreamEvent) => void,
+  options?: StreamOptions
+): Promise<void> {
+  const response = await fetch(resolveApiUrl(path), {
+    method: "GET",
+    headers: { Accept: "text/event-stream" },
+    signal: options?.signal,
+  });
+  if (!response.ok) {
+    const message = await readErrorMessage(response);
+    throw new Error(message || `Stream API failed: ${response.status}`);
+  }
+
+  if (!response.body) {
+    throw new Error("Stream response body is missing");
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) {
+      break;
+    }
+    buffer += decoder.decode(value, { stream: true }).replace(/\r\n/g, "\n");
+    while (true) {
+      const boundary = buffer.indexOf("\n\n");
+      if (boundary < 0) {
+        break;
+      }
+      const rawBlock = buffer.slice(0, boundary);
+      buffer = buffer.slice(boundary + 2);
+      const event = parseSseBlock(rawBlock);
+      if (event) {
+        onEvent(event);
+      }
+    }
+  }
+
+  buffer += decoder.decode().replace(/\r\n/g, "\n");
   const tailEvent = parseSseBlock(buffer);
   if (tailEvent) {
     onEvent(tailEvent);
@@ -273,7 +329,19 @@ function buildVoiceTurnFormData(payload: VoiceTurnRequest): FormData {
 
   formData.append("audio", payload.audio, filename);
   formData.append("locale", payload.locale ?? "ko-KR");
-  formData.append("voice_preset", payload.voice_preset ?? "friendly_ko");
+  formData.append("voice_preset", payload.voice_preset ?? "cute_ko");
+  return formData;
+}
+
+function buildProductImageFormData(payload: {
+  image: File;
+  note?: string;
+  locale?: string;
+}): FormData {
+  const formData = new FormData();
+  formData.append("image", payload.image, payload.image.name || "product.png");
+  formData.append("note", payload.note ?? "");
+  formData.append("locale", payload.locale ?? "ko-KR");
   return formData;
 }
 
@@ -290,6 +358,26 @@ export async function postVoiceTurn(
       signal: options?.signal,
     },
     "Voice turn API failed"
+  );
+}
+
+export async function uploadProductImage(
+  sessionId: string,
+  payload: {
+    image: File;
+    note?: string;
+    locale?: string;
+  },
+  options?: RequestOptions
+): Promise<ProductImageUploadResponse> {
+  return requestJson<ProductImageUploadResponse>(
+    `/chat/session/${sessionId}/product-image`,
+    {
+      method: "POST",
+      body: buildProductImageFormData(payload),
+      signal: options?.signal,
+    },
+    "Product image upload API failed"
   );
 }
 
@@ -322,7 +410,7 @@ export async function createAssistantVoice(
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         text: payload.text,
-        voice_preset: payload.voice_preset ?? "friendly_ko",
+        voice_preset: payload.voice_preset ?? "cute_ko",
         format: payload.format ?? "mp3",
       }),
       signal: options?.signal,
@@ -395,6 +483,28 @@ export async function getJob(jobId: string): Promise<JobGetResponse> {
     { method: "GET" },
     "Job get API failed"
   );
+}
+
+export async function streamJobStatus(
+  jobId: string,
+  onEvent: (event: StreamEvent) => void,
+  options?: {
+    pollMs?: number;
+    timeoutSeconds?: number;
+    signal?: AbortSignal;
+  }
+): Promise<void> {
+  const query = new URLSearchParams();
+  if (options?.pollMs !== undefined) {
+    query.set("poll_ms", String(options.pollMs));
+  }
+  if (options?.timeoutSeconds !== undefined) {
+    query.set("timeout_seconds", String(options.timeoutSeconds));
+  }
+  const suffix = query.toString() ? `?${query.toString()}` : "";
+  return streamGet(`/jobs/${jobId}/stream${suffix}`, onEvent, {
+    signal: options?.signal,
+  });
 }
 
 export async function listJobs(params?: {

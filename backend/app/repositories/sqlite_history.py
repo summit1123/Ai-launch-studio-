@@ -479,6 +479,13 @@ class SQLiteHistoryRepository:
         with self._connect() as conn:
             conn.execute(
                 """
+                DELETE FROM media_assets
+                WHERE run_id = ? AND asset_type = ?
+                """,
+                (run_id, asset_type),
+            )
+            conn.execute(
+                """
                 INSERT INTO media_assets (
                     asset_id,
                     run_id,

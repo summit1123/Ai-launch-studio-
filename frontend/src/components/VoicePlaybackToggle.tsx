@@ -21,12 +21,14 @@ function resolveAudioUrl(pathOrUrl: string): string {
 type VoicePlaybackToggleProps = {
   sessionId: string | null;
   text: string;
+  autoPlay?: boolean;
   disabled?: boolean;
 };
 
 export function VoicePlaybackToggle({
   sessionId,
   text,
+  autoPlay = false,
   disabled = false,
 }: VoicePlaybackToggleProps) {
   const [loading, setLoading] = useState(false);
@@ -34,6 +36,7 @@ export function VoicePlaybackToggle({
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const lastAutoplayKeyRef = useRef<string | null>(null);
 
   useEffect(() => {
     return () => {
@@ -48,6 +51,24 @@ export function VoicePlaybackToggle({
     setError(null);
     // text/session이 바뀌면 이전 질문 음성을 버린다.
   }, [sessionId, text]);
+
+  useEffect(() => {
+    if (!sessionId || !text.trim() || !autoPlay || disabled || loading || playing) {
+      return;
+    }
+
+    const key = `${sessionId}:${text.trim()}`;
+    if (lastAutoplayKeyRef.current === key) {
+      return;
+    }
+
+    void (async () => {
+      const success = await playFromText({ forceNewAudio: true });
+      if (success) {
+        lastAutoplayKeyRef.current = key;
+      }
+    })();
+  }, [autoPlay, disabled, loading, playing, sessionId, text]);
 
   const stopPlayback = () => {
     const audio = audioRef.current;
@@ -70,6 +91,44 @@ export function VoicePlaybackToggle({
     setPlaying(true);
   };
 
+  const playFromText = async ({
+    forceNewAudio = false,
+  }: {
+    forceNewAudio?: boolean;
+  }): Promise<boolean> => {
+    if (!sessionId || !text.trim() || disabled || loading) {
+      return false;
+    }
+    setError(null);
+    let targetUrl = forceNewAudio ? null : audioUrl;
+
+    try {
+      setLoading(true);
+      if (!targetUrl) {
+        const response = await createAssistantVoice(sessionId, {
+          text,
+          voice_preset: "cute_ko",
+          format: "mp3",
+        });
+        targetUrl = resolveAudioUrl(response.audio_url);
+        setAudioUrl(targetUrl);
+      }
+
+      await startPlayback(targetUrl);
+      return true;
+    } catch (playError) {
+      const message =
+        playError instanceof Error
+          ? playError.message
+          : "어시스턴트 음성 생성에 실패했습니다.";
+      setError(message);
+      setPlaying(false);
+      return false;
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleToggle = async () => {
     if (!sessionId || !text.trim() || disabled || loading) {
       return;
@@ -80,32 +139,7 @@ export function VoicePlaybackToggle({
       return;
     }
 
-    setError(null);
-    let targetUrl = audioUrl;
-
-    try {
-      setLoading(true);
-      if (!targetUrl) {
-        const response = await createAssistantVoice(sessionId, {
-          text,
-          voice_preset: "friendly_ko",
-          format: "mp3",
-        });
-        targetUrl = resolveAudioUrl(response.audio_url);
-        setAudioUrl(targetUrl);
-      }
-
-      await startPlayback(targetUrl);
-    } catch (playError) {
-      const message =
-        playError instanceof Error
-          ? playError.message
-          : "어시스턴트 음성 생성에 실패했습니다.";
-      setError(message);
-      setPlaying(false);
-    } finally {
-      setLoading(false);
-    }
+    await playFromText({ forceNewAudio: false });
   };
 
   return (

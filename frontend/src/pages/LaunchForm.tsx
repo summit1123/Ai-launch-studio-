@@ -143,13 +143,12 @@ export function LaunchForm({ loading, onSubmit, initialBrief = null }: LaunchFor
           <select
             value={form.video_seconds}
             onChange={(e) =>
-              updateForm({ ...form, video_seconds: Number(e.target.value) || 10 })
+              updateForm({ ...form, video_seconds: Number(e.target.value) || 12 })
             }
           >
-            <option value={5}>5초 (초단기 티저)</option>
-            <option value={10}>10초 (숏폼 기본)</option>
-            <option value={15}>15초 (메시지 확장)</option>
-            <option value={20}>20초 (브랜드 확장)</option>
+            <option value={4}>4초 (초단기 티저)</option>
+            <option value={8}>8초 (숏폼 기본)</option>
+            <option value={12}>12초 (메시지 확장)</option>
           </select>
         </label>
         <label>

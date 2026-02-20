@@ -90,6 +90,8 @@ export type ProductSlots = {
   category: string | null;
   features: string[];
   price_band: string | null;
+  image_url?: string | null;
+  image_context?: string | null;
 };
 
 export type TargetSlots = {
@@ -164,6 +166,17 @@ export type ChatMessageResponse = {
   gate: GateStatus;
 };
 
+export type ProductImageUploadResponse = {
+  session_id: string;
+  state: ChatState;
+  image_url: string;
+  image_summary: string | null;
+  next_question: string;
+  slot_updates: SlotUpdate[];
+  brief_slots: BriefSlots;
+  gate: GateStatus;
+};
+
 export type VoiceTurnResponse = {
   session_id: string;
   transcript: string;
@@ -178,12 +191,12 @@ export type VoiceTurnRequest = {
   audio: Blob | File;
   filename?: string;
   locale?: string;
-  voice_preset?: "friendly_ko" | "calm_ko" | "neutral_ko";
+  voice_preset?: "cute_ko" | "friendly_ko" | "calm_ko" | "neutral_ko";
 };
 
 export type AssistantVoiceRequest = {
   text: string;
-  voice_preset?: "friendly_ko" | "calm_ko" | "neutral_ko";
+  voice_preset?: "cute_ko" | "friendly_ko" | "calm_ko" | "neutral_ko";
   format?: "mp3" | "wav";
 };
 
@@ -243,6 +256,7 @@ export type JobGetResponse = {
   type: string;
   status: JobStatus;
   progress: number;
+  note: string | null;
   session_id: string;
   run_id: string | null;
   error: string | null;
@@ -262,6 +276,10 @@ export type StreamEventType =
   | "slot.updated"
   | "gate.ready"
   | "stage.changed"
+  | "job.snapshot"
+  | "job.progress"
+  | "job.completed"
+  | "job.failed"
   | "research.delta"
   | "strategy.delta"
   | "creative.delta"

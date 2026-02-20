@@ -20,7 +20,15 @@ export function AssetPreview({ assets }: AssetPreviewProps) {
     <section className="glass-panel">
       <h2 className="section-title">AI Generated Assets</h2>
       <div className="assetGrid">
-        <article style={{ background: "linear-gradient(165deg, rgba(11, 28, 56, 0.7), rgba(10, 23, 46, 0.64))", borderRadius: "20px", padding: "24px", border: "1px solid var(--surface-border)" }}>
+        <article
+          className="asset-card asset-card-hero"
+          style={{
+            background: "linear-gradient(165deg, rgba(11, 28, 56, 0.7), rgba(10, 23, 46, 0.64))",
+            borderRadius: "20px",
+            padding: "24px",
+            border: "1px solid var(--surface-border)",
+          }}
+        >
           <h4>🎥 홍보 영상 패키지 (Sora)</h4>
           {assets.video_url ? (
             <div className="media-preview" style={{ borderRadius: "16px", border: "1px solid var(--surface-border)", overflow: "hidden" }}>
@@ -42,7 +50,15 @@ export function AssetPreview({ assets }: AssetPreviewProps) {
           <p style={{ marginTop: "1.5rem", color: "var(--ink)", fontSize: "0.95rem", lineHeight: "1.7", opacity: 0.92 }}>{assets.video_script}</p>
         </article>
 
-        <article style={{ background: "linear-gradient(165deg, rgba(11, 28, 56, 0.7), rgba(10, 23, 46, 0.64))", borderRadius: "20px", padding: "24px", border: "1px solid var(--surface-border)" }}>
+        <article
+          className="asset-card"
+          style={{
+            background: "linear-gradient(165deg, rgba(11, 28, 56, 0.7), rgba(10, 23, 46, 0.64))",
+            borderRadius: "20px",
+            padding: "24px",
+            border: "1px solid var(--surface-border)",
+          }}
+        >
           <h4>🎨 마케팅 히어로 포스터</h4>
           {assets.poster_headline && <p style={{ fontSize: "1.2rem", fontWeight: "800", marginBottom: "1rem", background: "linear-gradient(135deg, #f8fdff 0%, #d4ecff 65%, #ffe8c6 100%)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>{assets.poster_headline}</p>}
           {assets.poster_image_url ? (
@@ -65,7 +81,15 @@ export function AssetPreview({ assets }: AssetPreviewProps) {
           <p style={{ marginTop: "1.5rem", color: "var(--muted)", fontSize: "0.95rem" }}>{assets.poster_brief}</p>
         </article>
 
-        <article style={{ background: "linear-gradient(165deg, rgba(11, 28, 56, 0.7), rgba(10, 23, 46, 0.64))", borderRadius: "20px", padding: "24px", border: "1px solid var(--surface-border)" }}>
+        <article
+          className="asset-card"
+          style={{
+            background: "linear-gradient(165deg, rgba(11, 28, 56, 0.7), rgba(10, 23, 46, 0.64))",
+            borderRadius: "20px",
+            padding: "24px",
+            border: "1px solid var(--surface-border)",
+          }}
+        >
           <h4>📝 제품 상세 카피 (Copy)</h4>
           <p style={{ fontSize: "1.05rem", lineHeight: "1.8", color: "var(--ink)" }}>{assets.product_copy}</p>
           {assets.product_copy_bullets && assets.product_copy_bullets.length > 0 && (

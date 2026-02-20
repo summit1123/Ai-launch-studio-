@@ -17,6 +17,7 @@ class MediaJobRecord:
     type: str
     status: JobStatus
     progress: int
+    note: str | None
     session_id: str
     run_id: str | None
     error: str | None
@@ -38,6 +39,7 @@ class MediaJobsService:
             type=job_type,
             status="queued",
             progress=0,
+            note=None,
             session_id=session_id,
             run_id=None,
             error=None,
@@ -48,17 +50,36 @@ class MediaJobsService:
             self._jobs[job.job_id] = job
         return job
 
-    def mark_running(self, *, job_id: str, progress: int = 10) -> MediaJobRecord | None:
-        return self._mutate(job_id=job_id, status="running", progress=progress, error=None)
+    def mark_running(
+        self,
+        *,
+        job_id: str,
+        progress: int = 10,
+        note: str | None = None,
+    ) -> MediaJobRecord | None:
+        return self._mutate(
+            job_id=job_id,
+            status="running",
+            progress=progress,
+            error=None,
+            note=note,
+        )
 
-    def mark_progress(self, *, job_id: str, progress: int) -> MediaJobRecord | None:
-        return self._mutate(job_id=job_id, progress=progress)
+    def mark_progress(
+        self,
+        *,
+        job_id: str,
+        progress: int,
+        note: str | None = None,
+    ) -> MediaJobRecord | None:
+        return self._mutate(job_id=job_id, progress=progress, note=note)
 
     def mark_completed(
         self,
         *,
         job_id: str,
         run_id: str | None = None,
+        note: str | None = None,
     ) -> MediaJobRecord | None:
         return self._mutate(
             job_id=job_id,
@@ -66,14 +87,16 @@ class MediaJobsService:
             progress=100,
             run_id=run_id,
             error=None,
+            note=note,
         )
 
-    def mark_failed(self, *, job_id: str, error: str) -> MediaJobRecord | None:
+    def mark_failed(self, *, job_id: str, error: str, note: str | None = None) -> MediaJobRecord | None:
         return self._mutate(
             job_id=job_id,
             status="failed",
             progress=100,
             error=error,
+            note=note,
         )
 
     def get_job(self, *, job_id: str) -> MediaJobRecord | None:
@@ -115,6 +138,7 @@ class MediaJobsService:
         progress: int | None = None,
         run_id: str | None = None,
         error: str | None = None,
+        note: str | None = None,
     ) -> MediaJobRecord | None:
         with self._lock:
             record = self._jobs.get(job_id)
@@ -129,6 +153,8 @@ class MediaJobsService:
                 record.run_id = run_id
             if error is not None or status in {"running", "completed"}:
                 record.error = error
+            if note is not None:
+                record.note = note
             record.updated_at = self._utc_now()
             return self._copy(record)
 
@@ -139,6 +165,7 @@ class MediaJobsService:
             type=record.type,
             status=record.status,
             progress=record.progress,
+            note=record.note,
             session_id=record.session_id,
             run_id=record.run_id,
             error=record.error,

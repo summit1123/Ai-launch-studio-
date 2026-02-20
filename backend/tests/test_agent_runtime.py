@@ -46,3 +46,45 @@ def test_coerce_output_falls_back_when_summary_is_missing() -> None:
 
     assert result is not None
     assert result.summary.strip() != ""
+
+
+def test_coerce_output_repairs_nested_budget_amount_map() -> None:
+    runtime = AgentRuntime(model="gpt-5.2", api_key=None, use_agent_sdk=False)
+    raw_output = {
+        "summary": "중첩 예산 map",
+        "budget_split_krw": {
+            "performance": {"amount": 5000000, "notes": "집행"},
+            "retargeting": {"value": "2,100,000원"},
+            "brand": {"krw": "1300000"},
+        },
+    }
+
+    result = runtime._coerce_output(
+        final_output=raw_output,
+        output_type=BizPlanningOutput,
+    )
+
+    assert result is not None
+    assert result.budget_split_krw["performance"] == 5_000_000
+    assert result.budget_split_krw["retargeting"] == 2_100_000
+    assert result.budget_split_krw["brand"] == 1_300_000
+
+
+def test_recover_output_from_sdk_exception_payload() -> None:
+    runtime = AgentRuntime(model="gpt-5.2", api_key=None, use_agent_sdk=False)
+    exc = RuntimeError(
+        (
+            "Invalid JSON when parsing "
+            '{"summary":"복구 테스트","budget_split_krw":{"콘텐츠":{"amount":250000}}} '
+            "for TypeAdapter(BizPlanningOutput)"
+        )
+    )
+
+    result = runtime._recover_output_from_exception(
+        exc=exc,
+        output_type=BizPlanningOutput,
+    )
+
+    assert result is not None
+    assert result.summary == "복구 테스트"
+    assert result.budget_split_krw["콘텐츠"] == 250_000

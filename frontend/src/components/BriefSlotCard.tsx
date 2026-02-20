@@ -11,6 +11,21 @@ type SlotCard = {
   items: Array<{ label: string; value: string }>;
 };
 
+const REQUIRED_SLOT_LABELS: Record<string, string> = {
+  "product.name": "제품명",
+  "product.category": "카테고리",
+  "product.features": "핵심 특징 3개",
+  "product.price_band": "가격대",
+  "target.who": "타겟 고객",
+  "target.why": "구매 이유",
+  "channel.channels": "집중 채널",
+  "goal.weekly_goal": "주간 목표",
+};
+
+function missingLabels(paths: string[]): string {
+  return paths.map((path) => REQUIRED_SLOT_LABELS[path] ?? path).join(", ");
+}
+
 function textValue(value: string | null | undefined): string {
   return value && value.trim() ? value : "-";
 }
@@ -153,7 +168,7 @@ export function BriefSlotCard({ slots, gate }: BriefSlotCardProps) {
 
       {!gate?.ready && gate && (
         <small style={{ color: "var(--muted)" }}>
-          누락 슬롯: {gate.missing_required.join(", ")}
+          누락 슬롯: {missingLabels(gate.missing_required)}
         </small>
       )}
     </div>

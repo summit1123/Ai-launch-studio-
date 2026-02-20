@@ -123,3 +123,21 @@ def test_async_generate_rejects_when_gate_not_ready(tmp_path: Path) -> None:
 
     gen_res = client.post(f"/api/runs/{session_id}/generate/async")
     assert gen_res.status_code == 409
+
+
+def test_job_stream_returns_sse_until_completion(tmp_path: Path) -> None:
+    client = _build_client(tmp_path)
+    session_id = _prepare_brief_ready_session(client)
+
+    gen_res = client.post(f"/api/runs/{session_id}/generate/async")
+    assert gen_res.status_code == 202
+    job_id = gen_res.json()["job_id"]
+
+    stream_res = client.get(
+        f"/api/jobs/{job_id}/stream",
+        params={"poll_ms": 120, "timeout_seconds": 5},
+    )
+    assert stream_res.status_code == 200
+    assert stream_res.headers["content-type"].startswith("text/event-stream")
+    assert "event: job.snapshot" in stream_res.text
+    assert "event: job.completed" in stream_res.text

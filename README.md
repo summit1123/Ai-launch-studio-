@@ -32,6 +32,37 @@ npm run dev
 VITE_API_BASE_URL=http://localhost:8000/api
 ```
 
+### 외부 공유 데모 (Cloudflare Tunnel)
+백엔드 + 프론트 + 터널 2개를 한 번에 실행:
+```bash
+cd /Users/gimdonghyeon/Downloads/ai-launch-studio
+chmod +x run_public_cloudflare.sh
+./run_public_cloudflare.sh
+```
+
+- 실행 후 터미널에 `Frontend Public URL`이 출력됩니다.
+- 종료는 `Ctrl+C`.
+
+### 고정 URL 운영 (Cloudflare Named Tunnel)
+사전 조건:
+- Cloudflare Zero Trust에서 Named Tunnel 생성
+- Public Hostname 매핑 설정
+  - 예: `app.example.com -> http://localhost:5050`
+  - 예: `api.example.com -> http://localhost:8090`
+- 터널 토큰 발급 (`CF_TUNNEL_TOKEN`)
+
+실행:
+```bash
+cd /Users/gimdonghyeon/Downloads/ai-launch-studio
+chmod +x run_public_cloudflare_named.sh
+CF_TUNNEL_TOKEN='발급받은_토큰' \
+PUBLIC_API_BASE_URL='https://api.example.com/api' \
+./run_public_cloudflare_named.sh
+```
+
+- 이 모드는 URL을 스크립트가 생성하지 않습니다.
+- 고정 URL은 Cloudflare 대시보드에서 미리 지정한 도메인을 그대로 사용합니다.
+
 ## 현재 API
 - `GET /health`
 - `POST /api/launch/run`

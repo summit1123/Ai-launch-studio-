@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import threading
+from collections.abc import Awaitable, Callable
 from datetime import date, timedelta
 
 from fastapi import APIRouter, HTTPException, Request, status
@@ -29,8 +30,8 @@ from app.services import MediaJobsService
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
-SYNC_RUN_TIMEOUT_SECONDS = 180
-ASYNC_RUN_TIMEOUT_SECONDS = 1_800
+SYNC_RUN_TIMEOUT_SECONDS = 420
+ASYNC_RUN_TIMEOUT_SECONDS = 3_600
 ASYNC_ASSET_TIMEOUT_SECONDS = 1_800
 
 
@@ -63,7 +64,7 @@ async def generate_run(session_id: str, request: Request) -> RunGenerateResponse
             mode=record.mode,
             completeness=gate.completeness,
             timeout_seconds=SYNC_RUN_TIMEOUT_SECONDS,
-            include_media=False,
+            include_media=True,
         )
     except asyncio.TimeoutError:
         _set_session_failed(
@@ -114,7 +115,15 @@ async def generate_run_async(session_id: str, request: Request) -> RunGenerateAs
     job = media_jobs.create_job(job_type="run_generation", session_id=session_id)
 
     async def _worker() -> None:
-        media_jobs.mark_running(job_id=job.job_id, progress=10)
+        media_jobs.mark_running(
+            job_id=job.job_id,
+            progress=10,
+            note="오케스트레이터가 기획 실행을 준비하고 있습니다.",
+        )
+        
+        async def _progress(progress: int, note: str) -> None:
+            media_jobs.mark_progress(job_id=job.job_id, progress=progress, note=note)
+
         try:
             run_id = await _run_pipeline(
                 session_id=session_id,
@@ -124,7 +133,8 @@ async def generate_run_async(session_id: str, request: Request) -> RunGenerateAs
                 mode=record.mode,
                 completeness=gate.completeness,
                 timeout_seconds=ASYNC_RUN_TIMEOUT_SECONDS,
-                include_media=False,
+                include_media=True,
+                progress_callback=_progress,
             )
         except asyncio.TimeoutError:
             _set_session_failed(
@@ -133,7 +143,11 @@ async def generate_run_async(session_id: str, request: Request) -> RunGenerateAs
                 brief_slots=record.brief_slots,
                 completeness=gate.completeness,
             )
-            media_jobs.mark_failed(job_id=job.job_id, error="Run generation timed out")
+            media_jobs.mark_failed(
+                job_id=job.job_id,
+                error="Run generation timed out",
+                note="기획 생성 제한 시간을 초과했습니다.",
+            )
             return
         except Exception as exc:
             logger.exception("Async run generation failed for session '%s'", session_id)
@@ -143,10 +157,22 @@ async def generate_run_async(session_id: str, request: Request) -> RunGenerateAs
                 brief_slots=record.brief_slots,
                 completeness=gate.completeness,
             )
-            media_jobs.mark_failed(job_id=job.job_id, error=str(exc))
+            media_jobs.mark_failed(
+                job_id=job.job_id,
+                error=str(exc),
+                note="기획 생성 중 오류가 발생했습니다.",
+            )
             return
 
-        media_jobs.mark_completed(job_id=job.job_id, run_id=run_id)
+        completion_note = "원클릭 생성이 완료되었습니다."
+        run_record = history_repository.get_run_output(run_id=run_id)
+        if run_record is not None:
+            completion_note = _build_media_completion_note(run_record.package.marketing_assets)
+        media_jobs.mark_completed(
+            job_id=job.job_id,
+            run_id=run_id,
+            note=completion_note,
+        )
 
     def _run_worker() -> None:
         try:
@@ -181,28 +207,52 @@ async def generate_run_assets_async(run_id: str, request: Request) -> RunAssetsG
     job = media_jobs.create_job(job_type="asset_generation", session_id=run_record.session_id)
 
     async def _worker() -> None:
-        media_jobs.mark_running(job_id=job.job_id, progress=10)
+        media_jobs.mark_running(
+            job_id=job.job_id,
+            progress=10,
+            note="크리에이티브 에이전트가 소재 생성 준비를 시작했습니다.",
+        )
         try:
-            media_jobs.mark_progress(job_id=job.job_id, progress=35)
+            media_jobs.mark_progress(
+                job_id=job.job_id,
+                progress=35,
+                note="포스터/영상 프롬프트를 구성하고 있습니다.",
+            )
             assets = await asyncio.wait_for(
                 _generate_assets(orchestrator=orchestrator, package=run_record.package),
                 timeout=ASYNC_ASSET_TIMEOUT_SECONDS,
             )
-            media_jobs.mark_progress(job_id=job.job_id, progress=80)
+            media_jobs.mark_progress(
+                job_id=job.job_id,
+                progress=80,
+                note="생성된 소재를 저장하고 결과를 정리 중입니다.",
+            )
             _persist_generated_assets(
                 history_repository=history_repository,
                 run_id=run_id,
                 assets=assets,
             )
         except asyncio.TimeoutError:
-            media_jobs.mark_failed(job_id=job.job_id, error="Asset generation timed out")
+            media_jobs.mark_failed(
+                job_id=job.job_id,
+                error="Asset generation timed out",
+                note="이벤트 소재 생성 제한 시간을 초과했습니다.",
+            )
             return
         except Exception as exc:
             logger.exception("Async asset generation failed for run '%s'", run_id)
-            media_jobs.mark_failed(job_id=job.job_id, error=str(exc))
+            media_jobs.mark_failed(
+                job_id=job.job_id,
+                error=str(exc),
+                note="이벤트 소재 생성 중 오류가 발생했습니다.",
+            )
             return
 
-        media_jobs.mark_completed(job_id=job.job_id, run_id=run_id)
+        media_jobs.mark_completed(
+            job_id=job.job_id,
+            run_id=run_id,
+            note="포스터/영상 생성이 완료되었습니다.",
+        )
 
     def _run_worker() -> None:
         try:
@@ -285,6 +335,7 @@ async def _run_pipeline(
     completeness: float,
     timeout_seconds: int,
     include_media: bool,
+    progress_callback: Callable[[int, str], Awaitable[None] | None] | None = None,
 ) -> str:
     history_repository.update_chat_state_and_slots(
         session_id=session_id,
@@ -302,6 +353,7 @@ async def _run_pipeline(
             orchestrator=orchestrator,
             launch_request=launch_request,
             include_media=include_media,
+            progress_callback=progress_callback,
         ),
         timeout=timeout_seconds,
     )
@@ -362,8 +414,8 @@ def _save_run_outputs(
 def _to_launch_brief(slots: BriefSlots) -> LaunchBrief:
     goal = slots.goal.weekly_goal or "inquiry"
     safe_video_seconds = slots.goal.video_seconds
-    if safe_video_seconds not in {5, 10, 15, 20}:
-        safe_video_seconds = 10
+    if safe_video_seconds not in {4, 8, 12}:
+        safe_video_seconds = 12
     core_kpi_map = {
         "reach": "주간 조회수 증가",
         "inquiry": "주간 문의 증가",
@@ -382,6 +434,8 @@ def _to_launch_brief(slots: BriefSlots) -> LaunchBrief:
         region="KR",
         channel_focus=slots.channel.channels,
         video_seconds=safe_video_seconds,
+        product_image_url=slots.product.image_url,
+        product_image_context=slots.product.image_context,
     )
 
 
@@ -426,17 +480,46 @@ def _persist_generated_assets(
         )
 
 
+def _build_media_completion_note(assets: MarketingAssets) -> str:
+    has_poster = bool(assets.poster_image_url)
+    has_video = bool(assets.video_url)
+    if has_poster and has_video:
+        return "원클릭 생성이 완료되었습니다. 기획서, 포스터, 영상을 모두 준비했어요."
+    if has_poster:
+        return (
+            "원클릭 생성이 완료되었습니다. 기획서와 포스터를 준비했지만 영상은 생성되지 않았어요. "
+            "영상 모델 접근 권한 또는 요청 파라미터를 확인해 주세요."
+        )
+    if has_video:
+        return (
+            "원클릭 생성이 완료되었습니다. 기획서와 영상을 준비했지만 포스터는 생성되지 않았어요. "
+            "이미지 모델 응답 상태를 확인해 주세요."
+        )
+    return (
+        "기획서는 생성되었지만 포스터/영상 생성이 누락되었습니다. "
+        "모델 접근 권한과 프롬프트를 확인한 뒤 다시 시도해 주세요."
+    )
+
+
 async def _run_orchestrator(
     *,
     orchestrator: MainOrchestrator,
     launch_request: LaunchRunRequest,
     include_media: bool,
+    progress_callback: Callable[[int, str], Awaitable[None] | None] | None = None,
 ) -> LaunchPackage:
     try:
-        return await orchestrator.run(launch_request, include_media=include_media)
+        return await orchestrator.run(
+            launch_request,
+            include_media=include_media,
+            progress_callback=progress_callback,
+        )
     except TypeError:
-        # Backward compatibility for fake orchestrators in tests.
-        return await orchestrator.run(launch_request)
+        try:
+            return await orchestrator.run(launch_request, include_media=include_media)
+        except TypeError:
+            # Backward compatibility for fake orchestrators in tests.
+            return await orchestrator.run(launch_request)
 
 
 async def _generate_assets(

@@ -8,9 +8,16 @@ export type MessageStreamItem = {
 
 type MessageStreamProps = {
   items: MessageStreamItem[];
+  compact?: boolean;
 };
 
-export function MessageStream({ items }: MessageStreamProps) {
+const API_BASE_URL =
+  import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8090/api";
+const BACKEND_BASE_URL = API_BASE_URL.replace(/\/api\/?$/, "");
+const PLANNER_AVATAR_URL = `${BACKEND_BASE_URL}/static/assets/planner_mascot.png`;
+const PLANNER_NAME = "루미";
+
+export function MessageStream({ items, compact = false }: MessageStreamProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -27,8 +34,8 @@ export function MessageStream({ items }: MessageStreamProps) {
       style={{
         display: "grid",
         gap: "12px",
-        maxHeight: "420px",
-        minHeight: "280px",
+        maxHeight: "460px",
+        minHeight: compact ? "120px" : "280px",
         overflowY: "auto",
         padding: "14px",
         borderRadius: "14px",
@@ -42,7 +49,9 @@ export function MessageStream({ items }: MessageStreamProps) {
           key={line.id}
           style={{
             justifySelf: line.role === "user" ? "end" : "start",
-            maxWidth: "78%",
+            maxWidth: line.role === "user" ? "72%" : "88%",
+            minWidth: line.role === "assistant" ? "240px" : undefined,
+            width: "fit-content",
             padding: "10px 12px",
             borderRadius: "14px",
             border:
@@ -59,8 +68,32 @@ export function MessageStream({ items }: MessageStreamProps) {
             boxShadow: "0 8px 24px rgba(2, 6, 23, 0.25)",
           }}
         >
-          <div style={{ fontSize: "0.72rem", color: "var(--muted)", marginBottom: "4px" }}>
-            {line.role === "assistant" ? "AI 플래너" : line.role === "user" ? "나" : "시스템"}
+          <div
+            style={{
+              fontSize: "0.78rem",
+              color: "var(--muted)",
+              marginBottom: "4px",
+              display: "flex",
+              alignItems: "center",
+              gap: "8px",
+              fontWeight: 700,
+            }}
+          >
+            {line.role === "assistant" && (
+              <img
+                src={PLANNER_AVATAR_URL}
+                alt={`${PLANNER_NAME} 프로필`}
+                style={{
+                  width: "42px",
+                  height: "42px",
+                  borderRadius: "999px",
+                  border: "2px solid rgba(143, 201, 255, 0.5)",
+                  objectFit: "cover",
+                  boxShadow: "0 4px 14px rgba(34, 211, 238, 0.24)",
+                }}
+              />
+            )}
+            {line.role === "assistant" ? PLANNER_NAME : line.role === "user" ? "나" : "시스템"}
           </div>
           {line.text}
         </div>

@@ -47,7 +47,7 @@ export function VoiceInputButton({
       audio: file,
       filename: file.name,
       locale: "ko-KR",
-      voice_preset: "friendly_ko",
+      voice_preset: "cute_ko",
     });
   };
 
@@ -86,7 +86,7 @@ export function VoiceInputButton({
               audio: blob,
               filename: `voice_${Date.now()}.webm`,
               locale: "ko-KR",
-              voice_preset: "friendly_ko",
+              voice_preset: "cute_ko",
             });
           }
         } finally {

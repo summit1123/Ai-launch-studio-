@@ -19,6 +19,7 @@ class VoiceService:
     """Handles speech-to-text and text-to-speech with OpenAI audio APIs."""
 
     VOICE_MAP = {
+        "cute_ko": "nova",
         "friendly_ko": "alloy",
         "calm_ko": "ash",
         "neutral_ko": "verse",
@@ -68,13 +69,13 @@ class VoiceService:
         self,
         *,
         text: str,
-        voice_preset: str = "friendly_ko",
+        voice_preset: str = "cute_ko",
         audio_format: str = "mp3",
     ) -> tuple[str, int]:
         if self._client is None:
             raise RuntimeError("OPENAI_API_KEY is missing")
 
-        voice = self.VOICE_MAP.get(voice_preset, "alloy")
+        voice = self.VOICE_MAP.get(voice_preset, "nova")
         response = await self._client.audio.speech.create(
             model=self._tts_model,
             voice=voice,

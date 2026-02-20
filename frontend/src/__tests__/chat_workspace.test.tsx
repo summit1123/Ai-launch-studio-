@@ -29,6 +29,8 @@ vi.mock("../api/client", () => ({
   getChatSession: vi.fn(),
   postChatMessage: vi.fn(),
   streamChatMessage: vi.fn(),
+  streamJobStatus: vi.fn(),
+  uploadProductImage: vi.fn(),
   streamVoiceTurn: vi.fn(),
   generateRunAssetsAsync: vi.fn(),
   generateRunAsync: vi.fn(),
@@ -119,7 +121,7 @@ describe("ChatWorkspace text flow", () => {
     await screen.findByText("제품명(상품명)을 알려주세요.");
 
     const textarea = screen.getByPlaceholderText(
-      "제품명, 카테고리, 특징, 가격대, 타겟, 채널, 목표를 자유롭게 입력하세요."
+      "자유롭게 답변해 주세요. 한 문장으로 보내도 됩니다."
     );
     fireEvent.change(textarea, { target: { value: "제품명은 테스트 세럼입니다." } });
     fireEvent.click(screen.getByRole("button", { name: "메시지 보내기" }));
@@ -132,7 +134,7 @@ describe("ChatWorkspace text flow", () => {
     });
 
     expect(screen.getByText("좋아요. 카테고리도 알려주세요.")).toBeTruthy();
-    expect(screen.getByText("게이트 진행률: 13% · 정보 수집 필요")).toBeTruthy();
+    expect(screen.queryByText(/게이트 진행률:/)).toBeNull();
   });
 
   it("스트림 slot.updated를 즉시 반영하고 스냅샷 실패 시 재전송하지 않는다", async () => {
@@ -177,7 +179,7 @@ describe("ChatWorkspace text flow", () => {
     await screen.findByText("제품명(상품명)을 알려주세요.");
 
     const textarea = screen.getByPlaceholderText(
-      "제품명, 카테고리, 특징, 가격대, 타겟, 채널, 목표를 자유롭게 입력하세요."
+      "자유롭게 답변해 주세요. 한 문장으로 보내도 됩니다."
     );
     fireEvent.change(textarea, { target: { value: "제품명은 즉시 반영 세럼입니다." } });
     fireEvent.click(screen.getByRole("button", { name: "메시지 보내기" }));
@@ -187,7 +189,7 @@ describe("ChatWorkspace text flow", () => {
     });
 
     await waitFor(() => {
-      expect(screen.getByText("즉시 반영 세럼")).toBeTruthy();
+      expect(screen.getByText("제품명은 즉시 반영 세럼입니다.")).toBeTruthy();
     });
     expect(postChatMessage).not.toHaveBeenCalled();
   });

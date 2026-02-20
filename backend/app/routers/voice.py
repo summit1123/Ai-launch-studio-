@@ -18,6 +18,7 @@ from app.schemas import (
 from app.services import VoiceService
 
 router = APIRouter()
+COLLECTABLE_STATES = {"CHAT_COLLECTING", "BRIEF_READY"}
 
 
 def _sse_event(event_type: str, data: dict[str, object]) -> str:
@@ -73,7 +74,7 @@ async def _process_voice_turn(
         content=transcript,
     )
 
-    if record.state != "CHAT_COLLECTING":
+    if record.state not in COLLECTABLE_STATES:
         gate = chat_orchestrator.evaluate_gate(record.brief_slots)
         dialogue_service = getattr(request.app.state, "onboarding_dialogue_service", None)
         assistant_message = "브리프 수집이 완료되었습니다. 다음 생성 단계를 실행해 주세요."
@@ -149,7 +150,7 @@ async def post_voice_turn(
     request: Request,
     audio: UploadFile = File(...),
     locale: str = Form(default="ko-KR"),
-    voice_preset: str = Form(default="friendly_ko"),
+    voice_preset: str = Form(default="cute_ko"),
 ) -> VoiceTurnResponse:
     _, response = await _process_voice_turn(
         session_id=session_id,
@@ -167,7 +168,7 @@ async def post_voice_turn_stream(
     request: Request,
     audio: UploadFile = File(...),
     locale: str = Form(default="ko-KR"),
-    voice_preset: str = Form(default="friendly_ko"),
+    voice_preset: str = Form(default="cute_ko"),
 ) -> StreamingResponse:
     previous_state, response = await _process_voice_turn(
         session_id=session_id,

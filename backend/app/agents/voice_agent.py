@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from typing import Literal
 
 
-VoicePreset = Literal["friendly_ko", "calm_ko", "neutral_ko"]
+VoicePreset = Literal["cute_ko", "friendly_ko", "calm_ko", "neutral_ko"]
 
 
 @dataclass(frozen=True)
@@ -20,6 +20,11 @@ class VoiceAgent:
     """Builds assistant question text with preset-specific tone."""
 
     PRESETS: dict[VoicePreset, VoicePresetConfig] = {
+        "cute_ko": VoicePresetConfig(
+            label="큐트형",
+            pace="medium",
+            prefix="좋아요.",
+        ),
         "friendly_ko": VoicePresetConfig(
             label="친근형",
             pace="medium",
@@ -40,7 +45,7 @@ class VoiceAgent:
     def resolve_preset(self, preset: str | None) -> VoicePreset:
         if preset in self.PRESETS:
             return preset
-        return "friendly_ko"
+        return "cute_ko"
 
     def format_question(self, *, question: str, preset: str | None) -> str:
         normalized = self.resolve_preset(preset)

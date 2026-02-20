@@ -22,7 +22,7 @@ export const BRIEF_TEMPLATES: BriefTemplate[] = [
       core_kpi: "런칭 후 4주 내 재구매율 25%",
       region: "KR",
       channel_focus: ["Instagram", "YouTube", "Naver SmartStore"],
-      video_seconds: 10,
+      video_seconds: 8,
     },
   },
   {
@@ -39,7 +39,7 @@ export const BRIEF_TEMPLATES: BriefTemplate[] = [
       core_kpi: "런칭 후 4주 내 신규 고객 전환율 3.5%",
       region: "KR",
       channel_focus: ["Instagram", "YouTube", "Olive Young"],
-      video_seconds: 10,
+      video_seconds: 8,
     },
   },
   {
@@ -56,7 +56,7 @@ export const BRIEF_TEMPLATES: BriefTemplate[] = [
       core_kpi: "런칭 6주 내 재구매율 20%",
       region: "KR",
       channel_focus: ["YouTube", "Naver SmartStore", "Kakao"],
-      video_seconds: 15,
+      video_seconds: 12,
     },
   },
   {
@@ -73,7 +73,7 @@ export const BRIEF_TEMPLATES: BriefTemplate[] = [
       core_kpi: "런칭 후 30일 내 CAC 18,000원 이하",
       region: "KR",
       channel_focus: ["Instagram", "TikTok", "Coupang"],
-      video_seconds: 10,
+      video_seconds: 12,
     },
   },
 ];

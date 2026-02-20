@@ -101,13 +101,13 @@ def test_generate_and_get_run_from_session(tmp_path: Path) -> None:
     get_payload = get_res.json()
     assert get_payload["state"] == "DONE"
     assert get_payload["package"]["request_id"] == "run_test_001"
-    assert get_payload["package"]["brief"]["video_seconds"] == 10
-    assert get_payload["package"]["marketing_assets"]["poster_image_url"] is None
-    assert get_payload["package"]["marketing_assets"]["video_url"] is None
+    assert get_payload["package"]["brief"]["video_seconds"] == 8
+    assert get_payload["package"]["marketing_assets"]["poster_image_url"] == "/static/assets/poster_test.png"
+    assert get_payload["package"]["marketing_assets"]["video_url"] == "https://cdn.example.com/video_test.mp4"
 
     repo: SQLiteHistoryRepository = client.app.state.history_repository
     media_assets = repo.list_media_assets(run_id="run_test_001")
-    assert len(media_assets) == 0
+    assert len(media_assets) == 2
 
 
 def test_generate_assets_after_report_generation(tmp_path: Path) -> None:
@@ -163,3 +163,42 @@ def test_generate_run_rejects_when_gate_not_ready(tmp_path: Path) -> None:
 
     gen_res = client.post(f"/api/runs/{session_id}/generate")
     assert gen_res.status_code == 409
+
+
+def test_generate_run_preserves_product_image_context(tmp_path: Path) -> None:
+    client = _build_client(tmp_path)
+    create_res = client.post("/api/chat/session", json={"locale": "ko-KR", "mode": "standard"})
+    session_id = create_res.json()["session_id"]
+
+    chat_orchestrator: ChatOrchestrator = client.app.state.chat_orchestrator
+    slots = chat_orchestrator.empty_slots()
+    slots.product.name = "런치부스터"
+    slots.product.category = "스킨케어"
+    slots.product.features = ["저자극", "빠른흡수", "비건"]
+    slots.product.price_band = "premium"
+    slots.product.image_url = "/static/assets/product_ref_sample.png"
+    slots.product.image_context = "민트톤 병 패키지, 은은한 로고, 프리미엄 스킨케어 무드"
+    slots.target.who = "20대 여성"
+    slots.target.why = "트러블 진정"
+    slots.channel.channels = ["Instagram", "YouTube"]
+    slots.goal.weekly_goal = "purchase"
+
+    gate = chat_orchestrator.evaluate_gate(slots)
+    assert gate.ready is True
+
+    repo: SQLiteHistoryRepository = client.app.state.history_repository
+    repo.update_chat_state_and_slots(
+        session_id=session_id,
+        state="BRIEF_READY",
+        brief_slots=slots,
+        completeness=gate.completeness,
+    )
+
+    gen_res = client.post(f"/api/runs/{session_id}/generate")
+    assert gen_res.status_code == 200
+
+    run_res = client.get("/api/runs/run_test_001")
+    assert run_res.status_code == 200
+    brief = run_res.json()["package"]["brief"]
+    assert brief["product_image_url"] == "/static/assets/product_ref_sample.png"
+    assert "민트톤" in brief["product_image_context"]

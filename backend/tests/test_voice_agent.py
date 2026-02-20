@@ -18,3 +18,13 @@ def test_voice_agent_tts_profile_contains_pace() -> None:
     profile = agent.tts_profile("neutral_ko")
     assert profile["preset"] == "neutral_ko"
     assert profile["pace"] == "medium"
+
+
+def test_voice_agent_supports_cute_preset() -> None:
+    agent = VoiceAgent()
+    cute = agent.format_question(question="채널은 어디로 갈까요?", preset="cute_ko")
+
+    assert cute.startswith("좋아요.")
+    profile = agent.tts_profile("cute_ko")
+    assert profile["preset"] == "cute_ko"
+    assert profile["pace"] == "medium"

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 import re
 from collections.abc import Mapping
@@ -124,9 +125,18 @@ class AgentRuntime:
         try:
             result = await Runner.run(starting_agent=live_agent, input=prompt)
             final_output = result.final_output
-        except Exception:
+        except Exception as exc:
             logger.exception("Agent SDK Runner.run failed for '%s'", agent_name)
-            return None
+            recovered = self._recover_output_from_exception(
+                exc=exc,
+                output_type=output_type,
+            )
+            if recovered is not None:
+                logger.warning(
+                    "Recovered SDK output for '%s' from exception payload",
+                    agent_name,
+                )
+            return recovered
 
         return self._coerce_output(final_output=final_output, output_type=output_type)
 
@@ -135,6 +145,14 @@ class AgentRuntime:
             return final_output
 
         if isinstance(final_output, str):
+            as_json = self._extract_json_dict_from_text(final_output)
+            if as_json is not None:
+                validated = self._validate_dict_output(
+                    output_type=output_type,
+                    payload=as_json,
+                )
+                if validated is not None:
+                    return validated
             return self._validate_minimal_output(
                 output_type=output_type,
                 summary=final_output,
@@ -165,6 +183,24 @@ class AgentRuntime:
             output_type=output_type,
             summary=str(final_output),
             source="sdk-fallback-stringified",
+        )
+
+    def _recover_output_from_exception(
+        self,
+        *,
+        exc: Exception,
+        output_type: type[OutputT],
+    ) -> OutputT | None:
+        payload = self._extract_json_dict_from_text(str(exc))
+        if payload is None:
+            return None
+        validated = self._validate_dict_output(output_type=output_type, payload=payload)
+        if validated is not None:
+            return validated
+        return self._validate_minimal_output(
+            output_type=output_type,
+            summary=self._extract_summary_candidate(payload),
+            source="sdk-exception-recovery",
         )
 
     def _validate_dict_output(
@@ -282,9 +318,67 @@ class AgentRuntime:
             return raw
         if isinstance(raw, float):
             return int(round(raw))
+        if isinstance(raw, Mapping):
+            for candidate_key in ("amount", "value", "krw", "cost", "budget"):
+                if candidate_key in raw:
+                    nested = AgentRuntime._coerce_int(raw[candidate_key])
+                    if nested is not None:
+                        return nested
+            return None
         if isinstance(raw, str):
             cleaned = raw.replace(",", "").replace(" ", "")
             match = re.search(r"-?\d+", cleaned)
             if match:
                 return int(match.group(0))
+        return None
+
+    @staticmethod
+    def _extract_json_dict_from_text(text: str) -> dict[str, object] | None:
+        if not text:
+            return None
+
+        start = text.find("{")
+        if start < 0:
+            return None
+
+        depth = 0
+        in_string = False
+        escaped = False
+        end = -1
+        for index in range(start, len(text)):
+            char = text[index]
+            if in_string:
+                if escaped:
+                    escaped = False
+                    continue
+                if char == "\\":
+                    escaped = True
+                    continue
+                if char == '"':
+                    in_string = False
+                continue
+
+            if char == '"':
+                in_string = True
+                continue
+            if char == "{":
+                depth += 1
+                continue
+            if char == "}":
+                depth -= 1
+                if depth == 0:
+                    end = index + 1
+                    break
+
+        if end <= start:
+            return None
+
+        candidate = text[start:end]
+        try:
+            parsed = json.loads(candidate)
+        except Exception:
+            return None
+
+        if isinstance(parsed, dict):
+            return parsed
         return None
