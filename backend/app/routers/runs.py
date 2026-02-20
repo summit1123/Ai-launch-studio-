@@ -96,6 +96,7 @@ async def generate_run_async(session_id: str, request: Request) -> RunGenerateAs
     history_repository: SQLiteHistoryRepository = request.app.state.history_repository
     chat_orchestrator: ChatOrchestrator = request.app.state.chat_orchestrator
     orchestrator: MainOrchestrator = request.app.state.orchestrator
+    runtime = getattr(request.app.state, "runtime", None)
     media_jobs: MediaJobsService = request.app.state.media_jobs
 
     record = history_repository.get_chat_session(session_id=session_id)
@@ -115,6 +116,9 @@ async def generate_run_async(session_id: str, request: Request) -> RunGenerateAs
     job = media_jobs.create_job(job_type="run_generation", session_id=session_id)
 
     async def _worker() -> None:
+        worker_orchestrator = orchestrator
+        if runtime is not None:
+            worker_orchestrator = MainOrchestrator(runtime=runtime)
         media_jobs.mark_running(
             job_id=job.job_id,
             progress=10,
@@ -128,7 +132,7 @@ async def generate_run_async(session_id: str, request: Request) -> RunGenerateAs
             run_id = await _run_pipeline(
                 session_id=session_id,
                 history_repository=history_repository,
-                orchestrator=orchestrator,
+                orchestrator=worker_orchestrator,
                 brief_slots=record.brief_slots,
                 mode=record.mode,
                 completeness=gate.completeness,
@@ -179,7 +183,11 @@ async def generate_run_async(session_id: str, request: Request) -> RunGenerateAs
             asyncio.run(_worker())
         except Exception:
             logger.exception("Async worker crashed for job '%s'", job.job_id)
-            media_jobs.mark_failed(job_id=job.job_id, error="Async worker crashed")
+            media_jobs.mark_failed(
+                job_id=job.job_id,
+                error="Async worker crashed",
+                note="기획 생성 워커가 비정상 종료되었습니다.",
+            )
 
     threading.Thread(target=_run_worker, daemon=True).start()
 
@@ -198,6 +206,7 @@ async def generate_run_async(session_id: str, request: Request) -> RunGenerateAs
 async def generate_run_assets_async(run_id: str, request: Request) -> RunAssetsGenerateAsyncResponse:
     history_repository: SQLiteHistoryRepository = request.app.state.history_repository
     orchestrator: MainOrchestrator = request.app.state.orchestrator
+    runtime = getattr(request.app.state, "runtime", None)
     media_jobs: MediaJobsService = request.app.state.media_jobs
 
     run_record = history_repository.get_run_output(run_id=run_id)
@@ -207,6 +216,9 @@ async def generate_run_assets_async(run_id: str, request: Request) -> RunAssetsG
     job = media_jobs.create_job(job_type="asset_generation", session_id=run_record.session_id)
 
     async def _worker() -> None:
+        worker_orchestrator = orchestrator
+        if runtime is not None:
+            worker_orchestrator = MainOrchestrator(runtime=runtime)
         media_jobs.mark_running(
             job_id=job.job_id,
             progress=10,
@@ -219,7 +231,7 @@ async def generate_run_assets_async(run_id: str, request: Request) -> RunAssetsG
                 note="포스터/영상 프롬프트를 구성하고 있습니다.",
             )
             assets = await asyncio.wait_for(
-                _generate_assets(orchestrator=orchestrator, package=run_record.package),
+                _generate_assets(orchestrator=worker_orchestrator, package=run_record.package),
                 timeout=ASYNC_ASSET_TIMEOUT_SECONDS,
             )
             media_jobs.mark_progress(
@@ -259,7 +271,11 @@ async def generate_run_assets_async(run_id: str, request: Request) -> RunAssetsG
             asyncio.run(_worker())
         except Exception:
             logger.exception("Async asset worker crashed for job '%s'", job.job_id)
-            media_jobs.mark_failed(job_id=job.job_id, error="Async asset worker crashed")
+            media_jobs.mark_failed(
+                job_id=job.job_id,
+                error="Async asset worker crashed",
+                note="소재 생성 워커가 비정상 종료되었습니다.",
+            )
 
     threading.Thread(target=_run_worker, daemon=True).start()
 

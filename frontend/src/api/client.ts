@@ -259,48 +259,122 @@ async function streamGet(
   onEvent: (event: StreamEvent) => void,
   options?: StreamOptions
 ): Promise<void> {
-  const response = await fetch(resolveApiUrl(path), {
-    method: "GET",
-    headers: { Accept: "text/event-stream" },
-    signal: options?.signal,
-  });
-  if (!response.ok) {
-    const message = await readErrorMessage(response);
-    throw new Error(message || `Stream API failed: ${response.status}`);
-  }
+  // Cloudflare Tunnel may drop long-lived SSE connections.
+  const MAX_RETRIES = 20;
+  const RETRY_DELAY_MS = 1_000;
+  const TERMINAL_TYPES = new Set<string>([
+    "job.completed",
+    "job.failed",
+    "run.completed",
+  ]);
 
-  if (!response.body) {
-    throw new Error("Stream response body is missing");
-  }
+  const sleep = (ms: number): Promise<void> =>
+    new Promise((resolve) => {
+      setTimeout(resolve, ms);
+    });
 
-  const reader = response.body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = "";
+  let lastStreamError: unknown = null;
 
-  while (true) {
-    const { value, done } = await reader.read();
-    if (done) {
-      break;
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt += 1) {
+    if (options?.signal?.aborted) {
+      return;
     }
-    buffer += decoder.decode(value, { stream: true }).replace(/\r\n/g, "\n");
-    while (true) {
-      const boundary = buffer.indexOf("\n\n");
-      if (boundary < 0) {
-        break;
+
+    let response: Response;
+    try {
+      response = await fetch(resolveApiUrl(path), {
+        method: "GET",
+        headers: { Accept: "text/event-stream" },
+        signal: options?.signal,
+      });
+    } catch (fetchError) {
+      lastStreamError = fetchError;
+      if (attempt < MAX_RETRIES && !options?.signal?.aborted) {
+        await sleep(RETRY_DELAY_MS);
+        continue;
       }
-      const rawBlock = buffer.slice(0, boundary);
-      buffer = buffer.slice(boundary + 2);
-      const event = parseSseBlock(rawBlock);
-      if (event) {
-        onEvent(event);
+      throw fetchError;
+    }
+
+    if (!response.ok) {
+      const message = await readErrorMessage(response);
+      throw new Error(message || `Stream API failed: ${response.status}`);
+    }
+
+    if (!response.body) {
+      throw new Error("Stream response body is missing");
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+    let terminalReached = false;
+    let droppedMidstream = false;
+
+    try {
+      while (true) {
+        let chunk: ReadableStreamReadResult<Uint8Array>;
+        try {
+          chunk = await reader.read();
+        } catch (readError) {
+          lastStreamError = readError;
+          droppedMidstream = true;
+          break;
+        }
+
+        const { value, done } = chunk;
+        if (done) {
+          break;
+        }
+
+        buffer += decoder.decode(value, { stream: true }).replace(/\r\n/g, "\n");
+        while (true) {
+          const boundary = buffer.indexOf("\n\n");
+          if (boundary < 0) {
+            break;
+          }
+          const rawBlock = buffer.slice(0, boundary);
+          buffer = buffer.slice(boundary + 2);
+          const event = parseSseBlock(rawBlock);
+          if (!event) {
+            continue;
+          }
+          onEvent(event);
+          if (TERMINAL_TYPES.has(event.type)) {
+            terminalReached = true;
+            return;
+          }
+        }
+      }
+    } finally {
+      reader.cancel().catch(() => {});
+    }
+
+    buffer += decoder.decode().replace(/\r\n/g, "\n");
+    const tailEvent = parseSseBlock(buffer);
+    if (tailEvent) {
+      onEvent(tailEvent);
+      if (TERMINAL_TYPES.has(tailEvent.type)) {
+        return;
       }
     }
-  }
 
-  buffer += decoder.decode().replace(/\r\n/g, "\n");
-  const tailEvent = parseSseBlock(buffer);
-  if (tailEvent) {
-    onEvent(tailEvent);
+    if (terminalReached) {
+      return;
+    }
+
+    if (attempt < MAX_RETRIES && !options?.signal?.aborted) {
+      if (!droppedMidstream) {
+        lastStreamError = new Error("SSE stream ended before terminal event");
+      }
+      await sleep(RETRY_DELAY_MS);
+      continue;
+    }
+
+    if (lastStreamError instanceof Error) {
+      throw lastStreamError;
+    }
+    throw new Error("SSE stream ended before terminal event");
   }
 }
 

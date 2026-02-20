@@ -14,7 +14,6 @@ import {
   getRun,
   postChatMessage,
   streamChatMessage,
-  streamJobStatus,
   uploadProductImage,
 } from "../api/client";
 import {
@@ -229,43 +228,6 @@ async function getRunSessionSnapshot(sessionId: string) {
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => window.setTimeout(resolve, ms));
-}
-
-function parseJobEvent(value: unknown): JobGetResponse | null {
-  const record = asRecord(value);
-  if (!record) {
-    return null;
-  }
-  if (
-    typeof record.job_id !== "string" ||
-    typeof record.type !== "string" ||
-    typeof record.progress !== "number" ||
-    typeof record.session_id !== "string" ||
-    typeof record.created_at !== "string" ||
-    typeof record.updated_at !== "string"
-  ) {
-    return null;
-  }
-  if (
-    record.status !== "queued" &&
-    record.status !== "running" &&
-    record.status !== "completed" &&
-    record.status !== "failed"
-  ) {
-    return null;
-  }
-  return {
-    job_id: record.job_id,
-    type: record.type,
-    status: record.status,
-    progress: record.progress,
-    note: typeof record.note === "string" ? record.note : null,
-    session_id: record.session_id,
-    run_id: typeof record.run_id === "string" ? record.run_id : null,
-    error: typeof record.error === "string" ? record.error : null,
-    created_at: record.created_at,
-    updated_at: record.updated_at,
-  };
 }
 
 type WorkspaceScene = "chat" | "meeting" | "result";
@@ -874,56 +836,24 @@ export function ChatWorkspace() {
         }
       };
 
-      try {
-        await streamJobStatus(
-          generated.job_id,
-          (event: StreamEvent) => {
-            if (event.type === "error") {
-              const payload = asRecord(event.data);
-              throw new Error(
-                typeof payload?.message === "string"
-                  ? payload.message
-                  : "생성 작업 스트림 처리 중 오류가 발생했습니다."
-              );
-            }
-            const job = parseJobEvent(event.data);
-            if (!job) {
-              return;
-            }
-            applyRunJobUpdate(job);
-            if (jobFailureMessage) {
-              throw new Error(jobFailureMessage);
-            }
-          },
-          { pollMs: 300, timeoutSeconds: 3_600 }
-        );
-      } catch (streamErr) {
+      appendMeetingLog("연결 안정성을 위해 폴링 모드로 진행 상황을 확인합니다.");
+      const POLL_INTERVAL_MS = 1_200;
+      const MAX_POLLS = 900; // 18 minutes
+      let terminal = false;
+      for (let pollCount = 0; pollCount < MAX_POLLS; pollCount += 1) {
+        const polledJob = await getJob(generated.job_id);
+        applyRunJobUpdate(polledJob);
         if (jobFailureMessage) {
-          throw streamErr;
+          throw new Error(jobFailureMessage);
         }
-        appendMeetingLog("스트림 연결이 불안정하여 폴링 모드로 전환합니다.");
-        const POLL_INTERVAL_MS = 1_200;
-        const MAX_POLLS = 240;
-        let terminal = false;
-        for (let pollCount = 0; pollCount < MAX_POLLS; pollCount += 1) {
-          const polledJob = await getJob(generated.job_id);
-          applyRunJobUpdate(polledJob);
-          if (jobFailureMessage) {
-            throw new Error(jobFailureMessage);
-          }
-          if (polledJob.status === "completed") {
-            terminal = true;
-            break;
-          }
-          await sleep(POLL_INTERVAL_MS);
+        if (polledJob.status === "completed") {
+          terminal = true;
+          break;
         }
-        if (!terminal && !resolvedRunId) {
-          throw new Error(
-            streamErr instanceof Error
-              ? streamErr.message
-              : "생성 상태를 가져오지 못했습니다. 잠시 후 다시 시도해 주세요."
-          );
-        }
+        await sleep(POLL_INTERVAL_MS);
+      }
+      if (!terminal && !resolvedRunId) {
+        throw new Error("생성 상태 확인 시간이 초과되었습니다. 잠시 후 다시 시도해 주세요.");
       }
 
       if (!resolvedRunId) {

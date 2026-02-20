@@ -58,6 +58,7 @@ app.state.product_image_service = product_image_service
 app.state.media_jobs = media_jobs
 app.state.settings = settings
 app.state.history_repository = history_repository
+app.state.runtime = runtime
 
 app.include_router(launch.router, prefix=settings.api_prefix, tags=["launch"])
 app.include_router(chat.router, prefix=settings.api_prefix, tags=["chat"])
