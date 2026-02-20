@@ -132,6 +132,7 @@ emit(run.completed)
 - 리서치: 재시도 1회
 - 전략: 재시도 1회
 - 크리에이티브/보이스: 각 1회
+- 오케스트레이터 phase timeout: 420초 (`PHASE_TIMEOUT_SECONDS`)
 - 고비용 미디어 생성은 백그라운드 모드 허용
 
 ## 9. No-Fake 원칙

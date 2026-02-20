@@ -12,7 +12,7 @@ from uuid import uuid4
 
 logger = logging.getLogger(__name__)
 
-PHASE_TIMEOUT_SECONDS = 180
+PHASE_TIMEOUT_SECONDS = 420
 MAX_RISKS = 10
 SUPPORTED_VIDEO_SECONDS = (4, 8, 12)
 VIDEO_TEXT_BUDGET: dict[int, dict[str, int]] = {

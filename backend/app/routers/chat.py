@@ -366,7 +366,14 @@ async def post_chat_message_stream(
                 {"state": record.state, "gate": gate.model_dump()},
             )
 
-        return StreamingResponse(_ready_stream(), media_type="text/event-stream")
+        return StreamingResponse(
+            _ready_stream(),
+            media_type="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache, no-transform",
+                "X-Accel-Buffering": "no",
+            },
+        )
 
     current_gate = chat_orchestrator.evaluate_gate(record.brief_slots)
     chat_history = history_repository.list_chat_messages(session_id=session_id, limit=24)
@@ -429,7 +436,14 @@ async def post_chat_message_stream(
             {"state": turn.state, "gate": turn.gate.model_dump()},
         )
 
-    return StreamingResponse(_event_stream(), media_type="text/event-stream")
+    return StreamingResponse(
+        _event_stream(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache, no-transform",
+            "X-Accel-Buffering": "no",
+        },
+    )
 
 
 @router.post(

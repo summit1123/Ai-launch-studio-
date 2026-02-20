@@ -197,7 +197,14 @@ async def post_voice_turn_stream(
         if response.gate.ready:
             yield _sse_event("gate.ready", response.gate.model_dump())
 
-    return StreamingResponse(_event_stream(), media_type="text/event-stream")
+    return StreamingResponse(
+        _event_stream(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache, no-transform",
+            "X-Accel-Buffering": "no",
+        },
+    )
 
 
 @router.post("/chat/session/{session_id}/assistant-voice", response_model=AssistantVoiceResponse)
